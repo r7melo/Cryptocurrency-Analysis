@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client</title>
+</head>
+<body>
+    <form id="cryptoForm">
+        <label for="cryptoName">Nome da Criptomoeda:</label>
+        <input type="text" id="cryptoName" name="cryptoName">
+        <button type="submit">Enviar</button>
+    </form>
+    <div id="response"></div>
+
+    <script>
+        document.getElementById('cryptoForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            var cryptoName = document.getElementById('cryptoName').value;
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', 'http://10.0.0.92:8080', true);
+            xhr.setRequestHeader('Content-Type', 'text/plain');
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        document.getElementById('response').innerText = xhr.responseText;
+                    } else {
+                        document.getElementById('response').innerText = 'Erro: ' + xhr.status;
+                    }
+                }
+            };
+            xhr.send(cryptoName);
+        });
+    </script>
+</body>
+</html>

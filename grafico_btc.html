@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Criptomoedas</title>
+    <!-- Incluindo Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+    <div id="conteiner" style="max-width: 80%; max-height: 500px;"></div>
+
+    <script>
+
+        const INTERVAL_DATA = 100; // minutos
+        const INTERVAL_TIME = 1; // minutos
+        const FILELIST_NAME = 'LIST_COINS_NAMES';
+
+        function gerarCorAleatoria() {
+            const r = Math.floor(Math.random() * 256); 
+            const g = Math.floor(Math.random() * 256);
+            const b = Math.floor(Math.random() * 256);
+            const corHexadecimal = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+            return corHexadecimal;
+        }
+
+        function lerUltimasNLinhasCSV(symbol, quantidadeLinhas, space = 1) {
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', `http://${window.location.hostname}:8080`, true);
+                xhr.setRequestHeader('Content-Type', 'text/plain');
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState === 4) {
+                        if (xhr.status === 200) {
+                            const data = JSON.parse(xhr.responseText).slice(1);
+                            const filteredData = data.slice(-quantidadeLinhas).filter((_, index) => index % space === 0);
+                            resolve(filteredData);
+                        } else {
+                            reject(new Error('Erro na solicitação: ' + xhr.status));
+                        }
+                    }
+                };
+                xhr.send(symbol);
+            });
+        }
+
+        lerUltimasNLinhasCSV(FILELIST_NAME, 300, 1)
+            .then(symbols => {
+                const conteiner = document.getElementById('conteiner');
+                symbols.forEach(symbol => {
+                    const block = document.createElement('canvas');
+                    block.id = symbol;
+                    block.width = 200;
+                    block.height = 100;
+                    conteiner.appendChild(block);
+                });
+
+                symbols.forEach(symbol => {
+                    lerUltimasNLinhasCSV(symbol, INTERVAL_DATA, INTERVAL_TIME)
+                        .then(data => {
+                            gerarTabela(data, symbol);
+                        })
+                        .catch(error => {
+                            console.error('Erro ao processar os dados do CSV:', error);
+                        });
+                });
+            })
+            .catch(error => {
+                console.error('Erro ao ler a lista de criptomoedas:', error);
+            });
+
+        function gerarTabela(linhas, symbol) {
+
+            const data_list = linhas.map(linha => linha[0]);
+            const point_mean_list = linhas.map(linha => (parseFloat(linha[1]) + parseFloat(linha[2])) / 2);
+
+            const myChart = new Chart(
+                document.getElementById(symbol),
+                {
+                    type: 'line',
+                    data: {
+                        labels: data_list,
+                        datasets: [{
+                            label: symbol,
+                            data: point_mean_list,
+                            borderColor: gerarCorAleatoria(),
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            x: {
+                                ticks: {
+                                    autoSkip: true,
+                                    maxTicksLimit: 10,
+                                    display: false
+                                }
+                            },
+                            y: {
+                                beginAtZero: false
+                            }
+                        }
+                    }
+                }
+            );
+
+        }
+
+    </script>
+
+</body>
+</html>

@@ -1,137 +1,99 @@
-import multiprocessing
 import requests
 import time
 import csv
 from datetime import datetime, timedelta
+from pathlib import Path
 
-LOGINFO = True
-URL_COINBASE = 'C:/CoinsBase/'
-URL_BINANCE_INFO = 'https://api.binance.com/api/v3/exchangeInfo'
+
+PATH_LOGINFO = "./"
+PATH_COINBASE = Path('./CoinsBase')
+PATH_COIN_LIST = Path('WhiteListCriptoCoin.txt')
 URL_BINANCE_KLINES = 'https://api.binance.com/api/v1/klines'
 DELAY = 60
 
-def logInfo(message):
-    if LOGINFO: print(message)
+class LogInfo:
+
+    @staticmethod
+    def write(menssage):
+        datetime_now = datetime.now()
+        day_str = datetime_now.strftime("%Y%m%d")
+        datetime_str = datetime_now.strftime("%d-%m-%Y %H:%M:%S.%f")
+
+        with open("{}log-{}".format(PATH_LOGINFO,day_str), "a") as fileLog:
+            fileLog.write("[{}] {}\n".format(datetime_str, menssage))
+
+class BinanceRequest:
+
+    @staticmethod
+    def request(url, symbol, interval, limit, start_time):
+        params = { 'symbol': symbol, 'interval': interval, 'limit': limit, 'startTime': start_time }
+
+        response = requests.get(url, params=params)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            LogInfo.write("Erro ao obter dados da API da Binance: {}".format(response.status_code))
+
+        return None
 
 class BinanceDataDownloader:
 
     @staticmethod
-    def download(filename, symbol="BTCUSDT", interval='1m', update=True):
-        data = None
+    def get_last_date(path_symbol):
+        if path_symbol.exists():
+            with path_symbol.open(mode='r', newline='') as file_csv:
+                reader = csv.reader(file_csv)
+                linhas = list(reader)
+                datetime_str = linhas[-1][0]
+                data_datetime = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M:%S")
+                data_datetime += timedelta(minutes=1)
+                return int(data_datetime.timestamp() * 1000)
+        return None
 
-        try:
-            data = pd.read_csv(filename, index_col=0, parse_dates=True)
-            logInfo("Dados carregados do arquivo local.")
+    @staticmethod
+    def download(path_symbol):
 
-            if not update: return data
+        start_time = BinanceDataDownloader.get_last_date(path_symbol)
 
-            if len(data) > 100:
-                start_time = data.index[-1]
-                
-                params = {
-                    'symbol': symbol,
-                    'interval': interval,
-                    'limit': 1000,
-                    'startTime': start_time
-                }
+        if not path_symbol.exists():
+            with path_symbol.open(mode='w') as file_list:
+                file_list.write("Open time,Open,High,Low,Close,Volume,Close time,Quote asset volume,Number of trades,Taker buy base asset volume,Taker buy quote asset volume,Ignore\n")
+            start_time = int((datetime.now() - timedelta(days=5)).timestamp() * 1000)
 
-                response = requests.get(URL_BINANCE_KLINES, params=params)
-                if response.status_code == 200:
-                    candlestick_data = response.json()
-                    if candlestick_data:
-                        with open(URL_COINBASE+symbol+'.csv', 'w', newline='') as f:
-                            writer = csv.writer(f)
-                            for candlestick in candlestick_data:
-                                writer.writerow(candlestick)
+        data = BinanceRequest.request(URL_BINANCE_KLINES, path_symbol.stem, '1m', 1000, start_time)
 
-                    print(symbol)
-                    logInfo("Dados atualizados e salvos no arquivo local.")
-                
-                else:
-                    print('Erro ao obter dados da API da Binance: {}'.format(response.status_code))
-                    return None
+        if data:
+            with path_symbol.open(mode='a') as  file_list:
+                for line in data:
 
-            else:
-                print("Arquivo não contem mais de 100 registros.")
+                    datetime_int = datetime.fromtimestamp(line[0] / 1000)
+                    line[0] = datetime_int.strftime("%Y-%m-%d %H:%M:%S")
 
-        except:
-            logInfo("Arquivo local não encontrado.")
+                    file_list.write(','.join([str(item) for item in line])+'\n')
 
-            current_time = datetime.now()
-            five_days_ago = current_time - timedelta(days=5)
-            start_time = int(five_days_ago.timestamp() * 1000)
-
-            params = {
-                'symbol': symbol,
-                'interval': interval,
-                'limit': 1000,
-                'startTime': start_time
-            }
-
-            response = requests.get(URL_BINANCE_KLINES, params=params)
-            if response.status_code == 200:
-                candlestick_data = response.json()
-                if candlestick_data:
-                    with open(URL_COINBASE+symbol+'.csv', 'w', newline='') as f:
-                        writer = csv.writer(f)
-                        writer.writerow(['Open time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Close time', 'Quote asset volume', 'Number of trades', 'Taker buy base asset volume', 'Taker buy quote asset volume', 'Ignore'])
-                        for candlestick in candlestick_data:
-                            writer.writerow(candlestick)
-
-            logInfo("Arquivo local gerado.")
-
-        return data
-
+            
+        
+        
  
     @staticmethod
-    def get_symbols(filter="USDT"):
-       
-        response = requests.get(URL_BINANCE_INFO)
-        blocked_list = []
+    def get_symbols_by_file_list(path_file_list):
 
-        try:
-            with open(URL_COINBASE+"BLOCKED_LIST.txt", "r") as file:
-                blocked_list = file.read().split('\n')
-        except:
-            print("Falha ao acessar a lista de símbolos bloqueados.")
-
-        if response.status_code == 200:
-            exchange_info = response.json()
-            symbols = [symbol['symbol'] for symbol in exchange_info['symbols'] if filter in symbol['symbol'] and symbol['symbol'] not in blocked_list]
-            return symbols
-        
+        if path_file_list.exists():
+            with path_file_list.open() as  file_list:
+                return file_list.readlines()
         else:
-            print("Falha ao obter a lista de símbolos da Binance.")
-            return []
+            LogInfo.write("Não foi possível carregar a lista de criptomoedas.")
         
-
-# Função para processar uma moeda
-def valide_coin(symbol):
-    filename = '{}/{}.csv'.format(URL_BINANCE_INFO, symbol)
-    BinanceDataDownloader.download(filename, symbol, update=True)
-
-# Função para processar uma lista de moedas
-def processar_moedas(symbols):
-    for symbol in symbols:
-        filename = URL_COINBASE+symbol+'.csv'
-        BinanceDataDownloader.download(filename, symbol, update=True)
 
 if __name__ == "__main__":
 
+    coins_list = BinanceDataDownloader.get_symbols_by_file_list(PATH_COIN_LIST)
+
     while True:
-        # Obtendo a lista de símbolos
-        symbols = BinanceDataDownloader.get_symbols()
-        processed = 0
-
-        # Configurando o multiprocessing
-        num_processes = multiprocessing.cpu_count()  # Usando o número de núcleos da CPU
-        chunk_size = len(symbols) // num_processes  # Dividindo a lista de símbolos em partes iguais para cada processo
-
-        # Dividindo a lista de símbolos em partes iguais para cada processo
-        symbol_chunks = [symbols[i:i+chunk_size] for i in range(0, len(symbols), chunk_size)]
-
-        # Criando e iniciando os processos
-        with multiprocessing.Pool(processes=num_processes) as pool:
-            pool.map(processar_moedas, symbol_chunks)
-
+        
+        for symbol in coins_list:
+            path_symbol = PATH_COINBASE.joinpath("{}.csv".format(symbol.strip()))
+            BinanceDataDownloader.download(path_symbol)
+            
         time.sleep(DELAY)
+
