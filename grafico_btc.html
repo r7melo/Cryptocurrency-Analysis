@@ -6,8 +6,35 @@
     <title>Criptomoedas</title>
     <!-- Incluindo Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .accordion {
+          background-color: #eee;
+          color: #444;
+          cursor: pointer;
+          padding: 18px;
+          width: 100%;
+          border: none;
+          text-align: left;
+          outline: none;
+          font-size: 15px;
+          transition: 0.4s;
+        }
+        
+        .active, .accordion:hover {
+          background-color: #ccc; 
+        }
+        
+        .panel {
+          padding: 0 18px;
+          display: none;
+          background-color: white;
+          overflow: hidden;
+        }
+    </style>
 </head>
 <body>
+
+    <h2>Criptomoedas</h2>
 
     <div id="conteiner" style="max-width: 80%; max-height: 500px;"></div>
 
@@ -28,7 +55,8 @@
         function lerUltimasNLinhasCSV(symbol, quantidadeLinhas, space = 1) {
             return new Promise((resolve, reject) => {
                 const xhr = new XMLHttpRequest();
-                xhr.open('POST', `http://${window.location.hostname}:8080`, true);
+                //xhr.open('POST', `http://${window.location.hostname}:8080`, true);
+                xhr.open('POST', `http://10.0.0.92:8080`, true);
                 xhr.setRequestHeader('Content-Type', 'text/plain');
                 xhr.onreadystatechange = function() {
                     if (xhr.readyState === 4) {
@@ -48,23 +76,26 @@
         lerUltimasNLinhasCSV(FILELIST_NAME, 300, 1)
             .then(symbols => {
                 const conteiner = document.getElementById('conteiner');
-                symbols.forEach(symbol => {
-                    const block = document.createElement('canvas');
-                    block.id = symbol;
-                    block.width = 200;
-                    block.height = 100;
-                    conteiner.appendChild(block);
-                });
 
                 symbols.forEach(symbol => {
-                    lerUltimasNLinhasCSV(symbol, INTERVAL_DATA, INTERVAL_TIME)
-                        .then(data => {
-                            gerarTabela(data, symbol);
-                        })
-                        .catch(error => {
-                            console.error('Erro ao processar os dados do CSV:', error);
-                        });
+
+                    conteiner.innerHTML = conteiner.innerHTML + `<button class="accordion">${symbol}</button><div id="${symbol}" class="panel"></div>`
+                    // const block = document.createElement('canvas');
+                    // block.id = symbol;
+                    // block.width = 200;
+                    // block.height = 100;
+                    // conteiner.appendChild(block);
                 });
+
+                // symbols.forEach(symbol => {
+                //     lerUltimasNLinhasCSV(symbol, INTERVAL_DATA, INTERVAL_TIME)
+                //         .then(data => {
+                //             gerarTabela(data, symbol);
+                //         })
+                //         .catch(error => {
+                //             console.error('Erro ao processar os dados do CSV:', error);
+                //         });
+                // });
             })
             .catch(error => {
                 console.error('Erro ao ler a lista de criptomoedas:', error);
@@ -107,6 +138,23 @@
 
         }
 
+    </script>
+
+    <script>
+        var acc = document.getElementsByClassName("accordion");
+        var i;
+
+        for (i = 0; i < acc.length; i++) {
+        acc[i].addEventListener("click", function() {
+            this.classList.toggle("active");
+            var panel = this.nextElementSibling;
+            if (panel.style.display === "block") {
+            panel.style.display = "none";
+            } else {
+            panel.style.display = "block";
+            }
+        });
+        }
     </script>
 
 </body>
