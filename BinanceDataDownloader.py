@@ -55,23 +55,13 @@ class BinanceDataDownloader:
  
     @staticmethod
     def get_symbols(filter="USDT"):
-       
-        url = 'https://api.binance.com/api/v3/exchangeInfo'
-        response = requests.get(url)
-        blocked_list = []
-
+        white_list_criptocoins = []
         try:
-            with open("C:/CoinsBase/BLOCKED_LIST.txt", "r") as file:
-                blocked_list = file.read().split('\n')
+            with open("C:/CoinsBase/WHITE_LIST_CRIPTOCOINS.txt", "r") as file:
+                white_list_criptocoins = file.read().split('\n')
         except:
-            print("Falha ao acessar a lista de símbolos bloqueados.")
+            print("Falha ao acessar a lista de símbolos.")
 
-        if response.status_code == 200:
-            exchange_info = response.json()
-            symbols = [symbol['symbol'] for symbol in exchange_info['symbols'] if filter in symbol['symbol'] and symbol['symbol'] not in blocked_list]
-            return symbols
-        
-        else:
-            print("Falha ao obter a lista de símbolos da Binance.")
-            return []
+        return white_list_criptocoins
+
         
