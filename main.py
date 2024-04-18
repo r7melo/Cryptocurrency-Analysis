@@ -13,7 +13,7 @@ def df0_bigger_dfn(dfs):
 # Função para processar uma moeda
 def valide_coin(symbol):
     filename = f'C:/CoinsBase/{symbol}.csv'
-    data = BinanceDataDownloader.download(filename, symbol, update=True)
+    data = BinanceDataDownloader.download(filename, symbol, update=False)
 
     if data is not None:
         mean_time = ((data['Open'] + data['Close']) / 2)
