@@ -1,6 +1,5 @@
 import vectorbt as vbt
 import pandas as pd
-import requests
 
 LOGINFO = False
 
