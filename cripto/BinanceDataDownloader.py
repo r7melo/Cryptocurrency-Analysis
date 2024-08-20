@@ -18,21 +18,18 @@ class BinanceDataDownloader:
 
             if not update: return data
 
-            if len(data) > 24:
-                last_line = data.index[-1]
-                update_data = vbt.BinanceData.download(
-                    symbol,
-                    start=last_line,
-                    end='now UTC',
-                    interval=interval
-                )
-                data = pd.concat([data, update_data.get()])
-                data.to_csv(filename)
+            last_line = data.index[-1]
+            update_data = vbt.BinanceData.download(
+                symbol,
+                start=last_line,
+                end='now UTC',
+                interval=interval
+            )
+            data = pd.concat([data, update_data.get()])
+            data.to_csv(filename)
 
-                logInfo("Dados atualizados e salvos no arquivo local.")
+            logInfo("Dados atualizados e salvos no arquivo local.")
 
-            else:
-                print("Arquivo não contem mais de 2000 registros.")
 
         except:
             logInfo("Arquivo local não encontrado.")
@@ -45,9 +42,10 @@ class BinanceDataDownloader:
             )
             data = binance_data.get()
 
-            data.to_csv(filename)
-
-            logInfo("Arquivo local gerado.")
+            if (len(data)>1):
+                data.to_csv(filename)
+        
+                logInfo("Arquivo local gerado.")
 
         return data
 
