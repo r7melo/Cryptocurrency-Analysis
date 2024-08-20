@@ -4,14 +4,11 @@ import numpy as np
 from BinanceDataDownloader import BinanceDataDownloader
 import math
 import itertools
-import mplfinance as mpf
 
    
-SYMBOL = "BBUSDT"
-
-
+SYMBOL = "BTCUSDT"
 filename = f'C:/CoinsBase/{SYMBOL}.csv'
-data = BinanceDataDownloader.download(filename, SYMBOL, update=False)
+data = BinanceDataDownloader.download(filename, SYMBOL, update=True)
 
 if data is not None:
 
@@ -38,10 +35,6 @@ if data is not None:
     # mean_geometric.plot(color='#d6d9db', label='MA³')
     # mean_time.plot(color='#7fa7ff', label='Center')
 
-    mav = [10, 20]
-
-    mpf.plot(data, type='candle', style='charles', title='Gráfico de Velas com Médias Móveis',
-         ylabel='Preço', volume=True, mav=mav)
    
 
     # Adicionar legendas e título
