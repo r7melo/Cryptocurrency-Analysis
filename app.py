@@ -1,7 +1,9 @@
 from dash import dcc, html
 import pandas as pd
+import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
-from dash import Dash, Input, Output, html, ctx,  dcc, callback
+from plotly.subplots import make_subplots
+from dash import Dash, Input, Output, html,  dcc, callback
 import os
 
 def generate_options():
@@ -27,7 +29,7 @@ def generate_graph_by_symbol(symbol):
     df['SMA_30'] = df['Close'].rolling(window=30).mean()  
 
     # Criando subplots
-    fig = go.Figure()
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1, subplot_titles=('Candlestick','Volume'), row_heights=[.7,.3])
 
     # Gráfico de Candlestick
     fig.add_trace(go.Candlestick(
@@ -37,8 +39,7 @@ def generate_graph_by_symbol(symbol):
         low=df['Low'],
         close=df['Close'],
         name='Candlestick',
-        yaxis='y1'
-    ))
+    ), row=1, col=1)
 
     # Adicionando média móvel
     fig.add_trace(go.Scatter(
@@ -47,8 +48,7 @@ def generate_graph_by_symbol(symbol):
         mode='lines',
         name='SMA 10',
         line=dict(color='#fbcfb7'),
-        yaxis='y1'
-    ))
+    ), row=1, col=1)
 
     # Adicionando média móvel
     fig.add_trace(go.Scatter(
@@ -57,8 +57,7 @@ def generate_graph_by_symbol(symbol):
         mode='lines',
         name='SMA 15',
         line=dict(color='#f8ae86'),
-        yaxis='y1'
-    ))
+    ), row=1, col=1)
 
     # Adicionando média móvel
     fig.add_trace(go.Scatter(
@@ -67,40 +66,52 @@ def generate_graph_by_symbol(symbol):
         mode='lines',
         name='SMA 30',
         line=dict(color='#f58e56'),
-        yaxis='y1'
-    ))
+    ), row=1, col=1)
+
+    fig.add_trace(go.Bar(
+         x=df.index,
+         y=df['Volume'],
+         name='Volume',
+         marker=dict(color='blue')
+    ), row=2, col=1)
 
     # Atualizando o layout para ter dois eixos y
     fig.update_layout(
         title=symbol,
         xaxis_title='Date',
         yaxis_title='Price',
-        yaxis2=dict(
-            title='Volume',
-            overlaying='y',
-            side='right'
-        ),
-        template='plotly_dark'
+        xaxis2_title='Data',
+        yaxis2_title='Volume',
+        template='plotly_dark',
+        xaxis_rangeslider_visible=False,
+        height=800
     )
 
     return fig
 
-# Inicializando a aplicação Dash
-app = Dash(__name__)
 
-# Layout da aplicação
-app.layout = html.Div(children=[
-    html.H1(children='Cripto Analysis', id="titulo"),
-    dcc.Dropdown(
-        id='crypto-dropdown',
-        options=generate_options(),
-        value='BTCUSDT' 
-    ),
-    dcc.Graph(
-        id='combined-graph',
-        figure=generate_graph_by_symbol('BTCUSDT')
-    )
-])
+# Inicializando a aplicação Dash
+app = Dash(__name__, external_stylesheets=[dbc.themes.CYBORG])
+
+
+# Layout do aplicativo usando componentes Bootstrap
+app.layout = dbc.Container(
+    [
+        dbc.Row(
+            [
+                dbc.Col(html.H1("Cripto Analysis", className="text-center text-primary mb-4"), width=12),
+                dcc.Dropdown(
+                    id='crypto-dropdown',
+                    options=generate_options(),
+                    value='BTCUSDT',
+                    className="dash-bootstrap"
+                ),
+                dcc.Graph(id='combined-graph', figure=generate_graph_by_symbol('BTCUSDT')),
+            ]
+        ),
+    ],
+    fluid=True
+)
 
 @callback(
     Output('combined-graph', 'figure'),
@@ -108,9 +119,7 @@ app.layout = html.Div(children=[
     prevent_initial_call=True
 )
 def update_titulo(dropdown_value):
-    tgg = ctx.triggered_id
-
-    if tgg == 'crypto-dropdown' and tgg is not None:
+    if dropdown_value is not None:
         return generate_graph_by_symbol(dropdown_value)
 
 
