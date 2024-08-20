@@ -9,7 +9,7 @@ def logInfo(message):
 class BinanceDataDownloader:
 
     @staticmethod
-    def download(filename, symbol="BTCUSDT", interval='1m', update=True):
+    def download(filename, symbol="BTCUSDT", interval='1h', update=True):
         data = None
 
         try:
@@ -18,7 +18,7 @@ class BinanceDataDownloader:
 
             if not update: return data
 
-            if len(data) > 2000:
+            if len(data) > 24:
                 last_line = data.index[-1]
                 update_data = vbt.BinanceData.download(
                     symbol,
