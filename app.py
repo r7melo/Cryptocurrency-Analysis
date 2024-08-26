@@ -5,6 +5,11 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from dash import Dash, Input, Output, html,  dcc, callback
 import os
+import vectorbt as vbt
+
+
+CACHE_GRAPH = 'BTCUSDT'
+COIN_BASE_PATH = 'C:/CoinsBase/1h/{}.csv'
 
 def generate_options():
         
@@ -106,6 +111,7 @@ app.layout = dbc.Container(
                     value='BTCUSDT',
                     className="dash-bootstrap"
                 ),
+                html.Button('Reflash', id='update_coin', n_clicks=0),
                 dcc.Graph(id='combined-graph', figure=generate_graph_by_symbol('BTCUSDT')),
             ]
         ),
@@ -114,14 +120,63 @@ app.layout = dbc.Container(
 )
 
 @callback(
-    Output('combined-graph', 'figure'),
+    Output('combined-graph', 'figure', allow_duplicate=True),
     Input('crypto-dropdown', 'value'),
     prevent_initial_call=True
 )
 def update_titulo(dropdown_value):
-    if dropdown_value is not None:
-        return generate_graph_by_symbol(dropdown_value)
+    global CACHE_GRAPH
 
+    if dropdown_value is not None:
+        CACHE_GRAPH = dropdown_value
+        return generate_graph_by_symbol(dropdown_value)
+    else:
+        return generate_graph_by_symbol(CACHE_GRAPH)
+
+
+@callback(
+    Output('combined-graph', 'figure'),
+    Input('update_coin', 'n_clicks')
+)
+def update_coin(n_clicks):
+    global CACHE_GRAPH, COIN_BASE_PATH
+
+    def download(symbol, start):
+        
+        try:
+            binance_data = vbt.BinanceData.download(
+                symbol,
+                start=start, 
+                end='now UTC',
+                interval='1h'
+            )
+
+            return binance_data.get()
+        
+        except:
+            return []
+
+    start = '7 day ago UTC'
+    path = COIN_BASE_PATH.format(CACHE_GRAPH)
+    
+    try:
+        data = pd.read_csv(path, index_col=0, parse_dates=True)
+        print(CACHE_GRAPH+" - Dados carregados do arquivo local.")
+        
+        start = data.index[-1]
+        data = pd.concat([data.iloc[:-1], download(CACHE_GRAPH, start)])
+        data.to_csv(path)
+        print(CACHE_GRAPH+" - Arquivo local atualizado.")
+
+    except:
+        
+        data = download(CACHE_GRAPH, start)
+
+        if len(data) > 1:
+            data.to_csv(path)
+            print(CACHE_GRAPH+" - Arquivo local gerado.")
+
+    return generate_graph_by_symbol(CACHE_GRAPH)
 
 # Executando a aplicação
 if __name__ == '__main__':

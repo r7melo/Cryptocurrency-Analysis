@@ -26,7 +26,7 @@ def download(symbol, start):
     try:
         binance_data = vbt.BinanceData.download(
             symbol,
-            start=start,
+            start=start, 
             end='now UTC',
             interval='1h'
         )
