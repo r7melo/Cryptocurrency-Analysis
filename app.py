@@ -4,9 +4,9 @@ import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from dash import Dash, Input, Output, html,  dcc, callback, dash_table
-import vectorbt as vbt
 from coin_manage import CoinManage, Coin
 import numpy as np
+import asyncio
 
 CACHE_GRAPH = Coin()
 
@@ -93,30 +93,39 @@ def generate_graph_by_symbol(coin:Coin = CACHE_GRAPH):
 
     return fig
 
-# Crie alguns dados iniciais
-def generate_data_table():
 
+async def calculate_variation(coin):
+    df = await asyncio.to_thread(coin.get_df)
+    vd = np.nan
+    
+    if len(df) > 30:
+        i0 = df['Open'].iloc[-24]
+        i1 = df['Close'].iloc[-1]
+        vd = ((i1 - i0) / i0) * 100
+
+    return coin.name, vd
+
+async def generate_data_table():
     coin_list = CoinManage.get_coin_list()
-    variation_day = []
-
-    for coin in coin_list:
-        df = coin.get_df()
-        vd = np.nan
-
-        if len(df) > 30:
-            i0 = df['Open'].iloc[-24]
-            i1 = df['Close'].iloc[-1]
-            vd = ((i1 - i0) / i0) * 100
-        
-        variation_day.append(vd)
-
-    result = pd.DataFrame({
-        'Symbol': [coin.name for coin in coin_list],
-        'Variation Day': variation_day
+    tasks = [calculate_variation(coin) for coin in coin_list]
+    results = await asyncio.gather(*tasks)
+    
+    # Separando os resultados
+    symbols, variations = zip(*results)
+    
+    # Criando o DataFrame
+    result_df = pd.DataFrame({
+        'Symbol': symbols,
+        'Variation Day': variations
     })
-  
-    return result.sort_values(by='Variation Day', ascending=False)
+    
+    return result_df.sort_values(by='Variation Day', ascending=False)
 
+def get_data_table_sync():
+    async def async_wrapper():
+        return await generate_data_table()
+
+    return asyncio.run(async_wrapper())
 
 app = Dash(__name__, external_stylesheets=[dbc.themes.CYBORG])
 
@@ -140,7 +149,10 @@ def update_graph(dropdown_value):
 )
 def reflash_coin(n_clicks):
     global CACHE_GRAPH
-    CoinManage.update_coin(CACHE_GRAPH)
+
+    if n_clicks > 0:
+        CoinManage.update_coin(CACHE_GRAPH)
+    
     return generate_graph_by_symbol(CACHE_GRAPH)
 
 # Callback para atualizar a tabela
@@ -149,8 +161,7 @@ def reflash_coin(n_clicks):
     [Input('reload-button', 'n_clicks')]
 )
 def update_table(n_clicks):
-    # Gere novos dados toda vez que o botão for clicado
-    df = generate_data_table()
+    df = get_data_table_sync()
     return df.to_dict('records')
 
 app.layout = dbc.Container(
