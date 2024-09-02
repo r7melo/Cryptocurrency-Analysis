@@ -3,33 +3,28 @@ import pandas as pd
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from dash import Dash, Input, Output, html,  dcc, callback
-import os
+from dash import Dash, Input, Output, html,  dcc, callback, dash_table
+from coin_manage import CoinManage, Coin
+import numpy as np
+import asyncio
+
+CACHE_GRAPH = Coin()
 
 def generate_options():
+    return [{'label': coin.name, 'value': coin.name} for coin in CoinManage.get_coin_list()]
         
-        options = []
-        try:
-            for file in os.listdir('C:/CoinsBase/1h/'):
-                name, _ = os.path.splitext(file)
-                options.append({'label': name, 'value': name})
-            
-        except:
-            print("Falha ao acessar a lista de símbolos.")
-        return options
+def generate_graph_by_symbol(coin:Coin = CACHE_GRAPH):
 
-def generate_graph_by_symbol(symbol):
+    df = coin.get_df()
 
-    filename = f'C:/CoinsBase/1h/{symbol}.csv'
-    df = pd.read_csv(filename, index_col=0, parse_dates=True)
-
+    df['Percentual'] = ((df['Close'] - df['Open']) / df['Open']) * 100
 
     df['SMA_10'] = df['Close'].rolling(window=10).mean() 
     df['SMA_15'] = df['Close'].rolling(window=15).mean()  
     df['SMA_30'] = df['Close'].rolling(window=30).mean()  
 
     # Criando subplots
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1, subplot_titles=('Candlestick','Volume'), row_heights=[.7,.3])
+    fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.1, row_heights=[.5,.3, .2])
 
     # Gráfico de Candlestick
     fig.add_trace(go.Candlestick(
@@ -75,13 +70,22 @@ def generate_graph_by_symbol(symbol):
          marker=dict(color='blue')
     ), row=2, col=1)
 
+    fig.add_trace(go.Bar(
+         x=df.index,
+         y=df['Percentual'],
+         name='Percentual',
+         marker=dict(color='red')
+    ), row=3, col=1)
+
     # Atualizando o layout para ter dois eixos y
     fig.update_layout(
-        title=symbol,
-        xaxis_title='Date',
+        title=coin.name,
+        xaxis_title=' ',
         yaxis_title='Price',
-        xaxis2_title='Data',
+        xaxis2_title=' ',
         yaxis2_title='Volume',
+        xaxis3_title=' ',
+        yaxis3_title='%',
         template='plotly_dark',
         xaxis_rangeslider_visible=False,
         height=800
@@ -90,39 +94,121 @@ def generate_graph_by_symbol(symbol):
     return fig
 
 
-# Inicializando a aplicação Dash
+async def calculate_variation(coin):
+    df = await asyncio.to_thread(coin.get_df)
+    vd = np.nan
+    
+    if len(df) > 30:
+        i0 = df['Open'].iloc[-24]
+        i1 = df['Close'].iloc[-1]
+        vd = ((i1 - i0) / i0) * 100
+
+    return coin.name, vd
+
+async def generate_data_table():
+    coin_list = CoinManage.get_coin_list()
+    tasks = [calculate_variation(coin) for coin in coin_list]
+    results = await asyncio.gather(*tasks)
+    
+    # Separando os resultados
+    symbols, variations = zip(*results)
+    
+    # Criando o DataFrame
+    result_df = pd.DataFrame({
+        'Symbol': symbols,
+        'Variation Day': variations
+    })
+    
+    return result_df.sort_values(by='Variation Day', ascending=False)
+
+def get_data_table_sync():
+    async def async_wrapper():
+        return await generate_data_table()
+
+    return asyncio.run(async_wrapper())
+
 app = Dash(__name__, external_stylesheets=[dbc.themes.CYBORG])
 
+@callback(
+    Output('combined-graph', 'figure', allow_duplicate=True),
+    Input('crypto-dropdown', 'value'),
+    prevent_initial_call=True
+)
+def update_graph(dropdown_value):
+    global CACHE_GRAPH
 
-# Layout do aplicativo usando componentes Bootstrap
+    if dropdown_value is not None:
+        CACHE_GRAPH = Coin(dropdown_value)
+
+    return generate_graph_by_symbol(CACHE_GRAPH)
+
+
+@callback(
+    Output('combined-graph', 'figure'),
+    Input('update_coin', 'n_clicks')
+)
+def reflash_coin(n_clicks):
+    global CACHE_GRAPH
+
+    if n_clicks > 0:
+        CoinManage.update_coin(CACHE_GRAPH)
+    
+    return generate_graph_by_symbol(CACHE_GRAPH)
+
+# Callback para atualizar a tabela
+@app.callback(
+    Output('data-table', 'data'),
+    [Input('reload-button', 'n_clicks')]
+)
+def update_table(n_clicks):
+    df = get_data_table_sync()
+    return df.to_dict('records')
+
 app.layout = dbc.Container(
     [
         dbc.Row(
             [
-                dbc.Col(html.H1("Cripto Analysis", className="text-center text-primary mb-4"), width=12),
-                dcc.Dropdown(
-                    id='crypto-dropdown',
-                    options=generate_options(),
-                    value='BTCUSDT',
-                    className="dash-bootstrap"
+                # SELECT COIN - REFLASH COIN
+                dbc.Col(
+                    dcc.Dropdown(
+                        id='crypto-dropdown',
+                        options=generate_options(),
+                        value='BTCUSDT',
+                        className="dash-bootstrap"
+                    ),
+                    width=10
                 ),
-                dcc.Graph(id='combined-graph', figure=generate_graph_by_symbol('BTCUSDT')),
+                dbc.Col(
+                    html.Button('Reflash', id='update_coin', n_clicks=0),
+                    width=2
+                ),            
             ]
         ),
-    ],
+        dbc.Row(
+            [
+                # GRAPH COIN
+                dcc.Graph(id='combined-graph', figure=generate_graph_by_symbol()),
+            ]
+        ),
+        html.Div(
+            dash_table.DataTable(
+                id='data-table',
+                page_size=10,  # Define o número de linhas por página
+                style_table={'width': '100%', 'overflowX': 'auto'},  # Para garantir a rolagem horizontal se necessário
+                style_data={'whiteSpace': 'normal', 'height': 'auto'},
+            ),
+            style={'display': 'flex', 'justifyContent': 'center'}
+        ),
+        html.Div(
+            html.Button('Recarregar Dados', id='reload-button', n_clicks=0),
+            style={'display': 'flex', 'justifyContent': 'center'}
+        ),
+        
+    ], 
     fluid=True
 )
 
-@callback(
-    Output('combined-graph', 'figure'),
-    Input('crypto-dropdown', 'value'),
-    prevent_initial_call=True
-)
-def update_titulo(dropdown_value):
-    if dropdown_value is not None:
-        return generate_graph_by_symbol(dropdown_value)
 
-
-# Executando a aplicação
 if __name__ == '__main__':
+
     app.run(debug=True)
