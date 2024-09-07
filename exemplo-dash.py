@@ -1,35 +1,33 @@
-import dash
-from dash import dcc, html, Input, Output
-import dash_table
-import pandas as pd
-import numpy as np
+import requests
+import xml.etree.ElementTree as ET
 
-# Crie alguns dados iniciais
-def generate_data():
-    return pd.DataFrame({
-        'Coluna 1': np.random.randint(1, 100, size=10),
-        'Coluna 2': np.random.choice(['A', 'B', 'C'], size=10)
-    })
+# URL para obter dados do ECB em XML
+url = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml'
 
-# Inicialize o app Dash
-app = dash.Dash(__name__)
+# Fazendo a requisição
+response = requests.get(url)
 
-# Layout da aplicação
-app.layout = html.Div([
-    html.Button('Recarregar Dados', id='reload-button', n_clicks=0),
-    dash_table.DataTable(id='data-table')
-])
+# Verifica se a requisição foi bem-sucedida
+if response.status_code == 200:
+    # Analisando o XML
+    tree = ET.ElementTree(ET.fromstring(response.content))
+    root = tree.getroot()
+    
+    # Iterando sobre as taxas de câmbio no XML
+    for cube in root.findall('.//{*}Cube[@currency]'):
+        currency = cube.get('currency')
+        rate = cube.get('rate')
+        print(f'{currency}: {rate}')
+else:
+    print("Falha ao obter dados:", response.status_code)
 
-# Callback para atualizar a tabela
-@app.callback(
-    Output('data-table', 'data'),
-    [Input('reload-button', 'n_clicks')]
-)
-def update_table(n_clicks):
-    # Gere novos dados toda vez que o botão for clicado
-    df = generate_data()
-    return df.to_dict('records')
+import yfinance as yf
 
-# Rodar o servidor
-if __name__ == '__main__':
-    app.run_server(debug=True)
+# Defina o símbolo do par de moedas Forex no Yahoo Finance
+symbol = 'EURUSD=X'
+
+# Obtenha dados históricos de 1 hora para a última semana
+data = yf.download(symbol, interval='1h', period='7d')
+
+# Exiba os dados
+print(data)
