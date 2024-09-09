@@ -20,7 +20,7 @@ CRIPTO_COINS_PATH = 'C:/DATABASE-COINS/cripto/'
 FOREX_COINS_PATH = 'C:/DATABASE-COINS/forex/'
 CRIPTO_COINS_LIST = const_list('C:/DATABASE-COINS/CRIPTO-COINS.txt')
 FOREX_COINS_LIST = const_list('C:/DATABASE-COINS/FOREX-COINS.txt')
-TIME_EXPIRATION = '1h'
+TIME_EXPIRATION = '1d'
 
 
 class Coin:
@@ -35,10 +35,15 @@ class Coin:
             self.context = 'FOREX'
             self.path = f'{DATABSE_COINS_PATH}forex/{TIME_EXPIRATION}/{name}.csv'
             self.dir = f'{DATABSE_COINS_PATH}forex/{TIME_EXPIRATION}/'
-        
-    def get_df(self):
+
+    def get_df(self, interval=None):
         try:
-            return pd.read_csv(self.path , index_col=0, parse_dates=True)
+            if interval is None:
+                return pd.read_csv(self.path , index_col=0, parse_dates=True)
+            else:
+                if self.context == 'FOREX':
+                    interval_path = f'{DATABSE_COINS_PATH}forex/{interval}/{self.name}.csv'
+                    return pd.read_csv(self.path , index_col=0, parse_dates=True)
         except:
             return []
         
@@ -187,5 +192,5 @@ class CoinManage:
             CoinManage.update_coin(coin)
 
 if __name__=='__main__':
-    CoinManage.upgrade_all_coins_async(CRIPTO_COINS_LIST) 
-    #CoinManage.upgrade_all_coins_sync(FOREX_COINS_LIST) 
+   # CoinManage.upgrade_all_coins_async(CRIPTO_COINS_LIST) 
+    CoinManage.upgrade_all_coins_sync(FOREX_COINS_LIST) 

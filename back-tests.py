@@ -1,4 +1,4 @@
-from coin_manage import CoinManage, Coin
+from coin_manage import CoinManage, Coin, CRIPTO_COINS_LIST, FOREX_COINS_LIST
 import asyncio
 from tqdm.asyncio import tqdm_asyncio
 import numpy as np
@@ -6,9 +6,9 @@ from dash import Dash, html, dash_table
 import pandas as pd
 import dash_bootstrap_components as dbc
 
-async def backtest(coin:Coin):
+def backtest(coin:Coin):
 
-    df = await asyncio.to_thread(coin.get_df)
+    df = coin.get_df()
     score = 0
     direction = '--'
     distance = 0
@@ -61,7 +61,7 @@ async def backtest(coin:Coin):
     distance = (distance.total_seconds() / 3600) if distance != -1 else np.nan
     #endregion
 
-    return coin.name, score, direction, pc[0], pc[1], distance
+    return [coin.name, score, direction, pc[0], pc[1], distance]
 
 #region PROCESS BACKTEST
 async def process_backtest():
@@ -80,17 +80,30 @@ async def process_backtest():
     })
     return result_df.sort_values(by=['Score','Total Ac.','Distance'], ascending=[False, False, True])
 
-def feedback_backtest():
+def feedback_backtest(coin_list, asy=False):
 
-    async def async_wrapper():
-        return await process_backtest()
+    if asy:
+        # async def async_wrapper():
+        #     return await process_backtest()
 
-    return asyncio.run(_download_progress_bar())
+        # return asyncio.run(CoinManage()._download_progress_bar(coins_list))
+        pass
 
-async def _download_async(self, coin_name):
+    else:
+        df = pd.DataFrame(columns=['Symbol', 'Score', 'Direction', 'Acertividade', 'Total Ac.', 'Distance'])
+        for coin_name in CRIPTO_COINS_LIST:
+            df.loc[len(df)] = backtest(Coin(coin_name))
+        return df
+
+            
+
+
+        
+
+async def _download_async(coin_name):
         await asyncio.to_thread(CoinManage.update_coin, Coin(coin_name))
 
-async def _download_progress_bar(self, coins_list):
+async def _download_progress_bar(coins_list):
     tasks = [_download_async(coin_name) for coin_name in coins_list]
     for f in tqdm_asyncio.as_completed(tasks, total=len(tasks), desc="Baixando dados das moedas"):
         await f
@@ -99,7 +112,7 @@ async def _download_progress_bar(self, coins_list):
 
 if __name__ == '__main__':
 
-    df = feedback_backtest()
+    df = feedback_backtest(CRIPTO_COINS_LIST, asy=False)
 
     app = Dash(__name__, external_stylesheets=[dbc.themes.CYBORG])
     app.layout = dbc.Container(
@@ -124,4 +137,3 @@ if __name__ == '__main__':
     )
 
     app.run(debug=True, port=8052)
-""
