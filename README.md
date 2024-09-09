@@ -30,19 +30,29 @@ Cryptocurrency-Analysis/
 │   ├── style.css                 # Arquivo de estilos customizados
 │   └── scripts.js                # Arquivo de scripts JavaScript, se necessário
 │
-├── dashboards/                   # Diretório para os diferentes dashboards
-│   ├── dashboard1.py             # Código para o primeiro dashboard
-│   ├── dashboard2.py             # Código para o segundo dashboard
-│   └── ...                       # Outros dashboards
+├── pages/                        # Diretório para as diferentes páginas da aplicação
+│   ├── index.py                  # Página inicial do dashboard
+│   ├── dashboard1.py             # Página do primeiro dashboard
+│   ├── dashboard2.py             # Página do segundo dashboard
+│   ├── backtest1.py              # Página do primeiro backtest
+│   └── backtest2.py              # Página do segundo backtest
 │
 ├── components/                   # Componentes reutilizáveis para os dashboards
-│   ├── layout.py                 # Layouts reutilizáveis
-│   ├── callbacks.py              # Callbacks reutilizáveis
+│   ├── navbar.py                 # Componente de navegação
 │   └── utils.py                  # Funções utilitárias
 │
 ├── data/                         # Dados do projeto
-│   ├── raw/                      # Dados brutos, não processados
-│   └── processed/                # Dados processados, prontos para uso
+│   ├── cripto/                   # Dados relacionados a criptomoedas
+│   │   ├── 15m/                  # Dados de criptomoedas com intervalo de 15 minutos
+│   │   ├── 1d/                   # Dados de criptomoedas com intervalo de 1 dia
+│   │   ├── 1h/                   # Dados de criptomoedas com intervalo de 1 hora
+│   │   └── 4h/                   # Dados de criptomoedas com intervalo de 4 horas
+│   │
+│   └── forex/                    # Dados relacionados ao mercado Forex
+│       ├── 15m/                  # Dados de Forex com intervalo de 15 minutos
+│       ├── 1d/                   # Dados de Forex com intervalo de 1 dia
+│       ├── 1h/                   # Dados de Forex com intervalo de 1 hora
+│       └── 4h/                   # Dados de Forex com intervalo de 4 horas
 │
 ├── notebooks/                    # Notebooks Jupyter para exploração e análises
 │   ├── exploracao.ipynb          # Exemplo de notebook de exploração de dados
