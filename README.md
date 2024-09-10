@@ -39,7 +39,16 @@ Cryptocurrency-Analysis/
 │
 ├── components/                   # Componentes reutilizáveis para os dashboards
 │   ├── navbar.py                 # Componente de navegação
-│   └── utils.py                  # Funções utilitárias
+│   └── utils.py                  # Funções utilitárias (pode ser movido para a pasta 'utils/')
+│
+├── classes/                      # Classes do projeto
+│   ├── data_loader.py            # Classe para carregamento de dados
+│   ├── logger.py                 # Classe para log de eventos e erros
+│   └── ...                       # Outras classes específicas do projeto
+│
+├── utils/                        # Utilitários e funções auxiliares
+│   ├── data_processing.py        # Funções para processamento de dados
+│   └── file_operations.py        # Funções para operações com arquivos
 │
 ├── data/                         # Dados do projeto
 │   ├── cripto/                   # Dados relacionados a criptomoedas
@@ -63,4 +72,6 @@ Cryptocurrency-Analysis/
 │   └── design_decisions.md       # Decisões de design e arquitetura do projeto
 │
 └── tests/                        # Testes automatizados
-    └── test_dashboard1.py        # Exemplo de arquivo de teste para o primeiro dashboard
+    ├── test_dashboard1.py        # Exemplo de arquivo de teste para o primeiro dashboard
+    └── ...                       # Outros arquivos de teste
+
