@@ -162,11 +162,14 @@ trend_base/
 
 
 # Ignorar todos os arquivos na pasta data/
-data/cripto/15min/*
-data/cripto/1h/*
-data/cripto/4h/*
-data/cripto/1d/*
-data/forex/15min/*
+data/crypto/15m/*
+data/crypto/1h/*
+data/crypto/4h/*
+data/crypto/1d/*
+data/forex/15m/*
 data/forex/1h/*
 data/forex/4h/*
 data/forex/1d/*
+
+# Ignorar arquivos logs/
+logs/
