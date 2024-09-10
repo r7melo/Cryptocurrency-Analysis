@@ -9,4 +9,4 @@ server = app.server  # Necessário para deploy em algumas plataformas
 app.layout = dash.page_container
 
 if __name__ == "__main__":
-    app.run_server(debug=True, port=80)
+    app.run_server(debug=False, host='0.0.0.0', port=80)

@@ -42,7 +42,7 @@ Cryptocurrency-Analysis/
 │   └── utils.py                  # Funções utilitárias
 │
 ├── data/                         # Dados do projeto
-│   ├── cripto/                   # Dados relacionados a criptomoedas
+│   ├── crypto/                   # Dados relacionados a criptomoedas
 │   │   ├── 15m/                  # Dados de criptomoedas com intervalo de 15 minutos
 │   │   ├── 1d/                   # Dados de criptomoedas com intervalo de 1 dia
 │   │   ├── 1h/                   # Dados de criptomoedas com intervalo de 1 hora
