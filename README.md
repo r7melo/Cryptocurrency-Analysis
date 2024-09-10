@@ -74,3 +74,4 @@ Cryptocurrency-Analysis/
 └── tests/                        # Testes automatizados
     ├── test_dashboard1.py        # Exemplo de arquivo de teste para o primeiro dashboard
     └── ...                       # Outros arquivos de teste
+
