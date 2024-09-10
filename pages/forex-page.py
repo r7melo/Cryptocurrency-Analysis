@@ -29,6 +29,43 @@ layout = dbc.Container(
     fluid=True
 )
 
+config_layout = lambda name: {
+    'title':dict(
+        text=name,
+        font=dict(size=20, color='white')  # Cor e tamanho do título
+    ),
+    'xaxis':dict(
+        title='Tempo',  # Título do eixo x
+        title_font=dict(size=14, color='white'),  # Cor e tamanho do título do eixo x
+        type='date',  # Define o tipo de dado como data
+        tickformat='%d-%m-%Y %H:%M',  # Formato dos ticks para o eixo de tempo
+        tickfont=dict(color='lightgray'),  # Cor das marcações dos ticks
+        tickangle=45,  # Ângulo dos ticks para melhor visualização
+        gridcolor='gray',  # Cor das linhas de grade verticais
+        showline=True,  # Mostra a linha do eixo x
+        linecolor='white',  # Cor da linha do eixo x
+    ),
+    'yaxis':dict(
+        title='Price',  # Título do eixo y
+        title_font=dict(size=14, color='white'),  # Cor e tamanho do título do eixo y
+        tickfont=dict(color='lightgray'),  # Cor das marcações dos ticks no eixo y
+        gridcolor='gray',  # Cor das linhas de grade horizontais
+        showline=True,  # Mostra a linha do eixo y
+        linecolor='white',  # Cor da linha do eixo y
+    ),
+    'template':'plotly_dark',  # Tema escuro
+    'height':900,
+    'legend':dict(
+        orientation='h',
+        bgcolor='rgba(0,0,0,0.5)',
+        bordercolor='white',
+        borderwidth=1,
+        font=dict(
+            size=12,
+            color='white'
+        )
+    )
+}
 
 @callback(
     Output('graph-forex', 'figure'),
@@ -72,43 +109,7 @@ def update_graph_forex(n):
     fig.add_trace(scatter('EMA 9', '#1bf', df['EMA_9']), row=1, col=1)
 
 
-    fig.update_layout(
-        title=dict(
-            text=coin.name,
-            font=dict(size=20, color='white')  # Cor e tamanho do título
-        ),
-        xaxis=dict(
-            title='Tempo',  # Título do eixo x
-            title_font=dict(size=14, color='white'),  # Cor e tamanho do título do eixo x
-            type='date',  # Define o tipo de dado como data
-            tickformat='%d-%m-%Y %H:%M',  # Formato dos ticks para o eixo de tempo
-            tickfont=dict(color='lightgray'),  # Cor das marcações dos ticks
-            tickangle=45,  # Ângulo dos ticks para melhor visualização
-            gridcolor='gray',  # Cor das linhas de grade verticais
-            showline=True,  # Mostra a linha do eixo x
-            linecolor='white',  # Cor da linha do eixo x
-        ),
-        yaxis=dict(
-            title='Price',  # Título do eixo y
-            title_font=dict(size=14, color='white'),  # Cor e tamanho do título do eixo y
-            tickfont=dict(color='lightgray'),  # Cor das marcações dos ticks no eixo y
-            gridcolor='gray',  # Cor das linhas de grade horizontais
-            showline=True,  # Mostra a linha do eixo y
-            linecolor='white',  # Cor da linha do eixo y
-        ),
-        template='plotly_dark',  # Tema escuro
-        height=900,
-        legend=dict(
-            orientation='h',
-            bgcolor='rgba(0,0,0,0.5)',
-            bordercolor='white',
-            borderwidth=1,
-            font=dict(
-                size=12,
-                color='white'
-            )
-        )
-    )
+    fig.update_layout(**config_layout(coin.name))
 
 
     return fig
