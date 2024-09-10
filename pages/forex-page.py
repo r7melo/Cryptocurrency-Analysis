@@ -89,8 +89,8 @@ def update_graph_forex(n):
     df['EMA_9'] =  Indicator.exponential_mean(price_center, 9)
 
 
-    df['LOSS_BUY'] = (df['Low'].shift(-9).rolling(window=9).min()).shift(9)
-    df['LOSS_SELL'] = (df['High'].shift(-9).rolling(window=9).max()).shift(9)
+    df['LOSS_BUY'] = Indicator.compare_displaced(df, 'Low', 'min', 9)
+    df['LOSS_SELL'] = Indicator.compare_displaced(df, 'High', 'max', 9)
 
     # Criando subplots
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1, row_heights=[.9, .1])
