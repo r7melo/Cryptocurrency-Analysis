@@ -1,6 +1,7 @@
 # components/graph.py
-from dash import html, dcc, callback, Output, Input
+from dash import html, dcc, Output, Input
 from plotly.subplots import make_subplots
+import plotly.graph_objects as go
 
 config_layout_component_graph = {
     'title':dict(
@@ -44,7 +45,7 @@ class GraphComponent:
         self.name = name
         self.update_function = update_function
         self.interval_update = 5 # minutos
-        self.fig = None
+        self.fig: go.Figure = None
         
         self.graph = html.Div(
             [
