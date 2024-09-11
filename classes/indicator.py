@@ -69,29 +69,25 @@ class Indicator:
         - df (pd.DataFrame): DataFrame contendo as colunas 'Open', 'Close' e 'EMA_9'.
 
         Retorna:
-        - pd.DataFrame: O mesmo DataFrame de entrada com duas novas colunas:
-        - '9_1_Buy': Indica True quando um sinal de compra é identificado; caso contrário, False.
-        - '9_1_Sell': Indica True quando um sinal de venda é identificado; caso contrário, False.
+        - pd.DataFrame: O mesmo DataFrame de entrada com a nova coluna 'Setup_9_1', indicando 'Buy', 'Sell' ou np.nan.
         """
         
-        # Inicializa colunas para os sinais de compra e venda
-        df['Setup_9_1'] = np.nan
+        # Inicializa a coluna 'Setup_9_1' com o tipo de dados 'object'
+        df['Setup_9_1'] = pd.Series([np.nan] * len(df), dtype='object')
         
-        # Itera sobre o DataFrame para identificar sinais
-        for i, row in df.iterrows():
-
-            if row['Open'] < row['EMA_9'] < row['Close']:
-                # Condição para sinal de compra
-                df.at[i, 'Setup_9_1'] = 'Buy'
-
-            elif row['Open'] > row['EMA_9'] > row['Close']:
-                # Condição para sinal de venda
-                df.at[i, 'Setup_9_1'] = 'Sell'
+        # Condições para identificar os sinais de compra e venda
+        buy_condition = (df['Open'] < df['EMA_9']) & (df['Close'] > df['EMA_9'])
+        sell_condition = (df['Open'] > df['EMA_9']) & (df['Close'] < df['EMA_9'])
+        
+        # Atribui os sinais de compra e venda
+        df.loc[buy_condition, 'Setup_9_1'] = 'Buy'
+        df.loc[sell_condition, 'Setup_9_1'] = 'Sell'
 
         return df
     
+    
     @staticmethod
-    def setup_test(df_: pd.DataFrame) -> pd.DataFrame:
+    def setup_test(df: pd.DataFrame) -> pd.DataFrame:
         """
         Identifica sinais de operação com base na coluna 'Setup_9_1' e avalia o sucesso da operação.
         
@@ -101,43 +97,32 @@ class Indicator:
         Retorna:
         - pd.DataFrame: DataFrame com uma nova coluna 'Operation' indicando se a operação foi 'Gain' ou 'Loss'.
         """
-        df = df_.copy()
 
-        # Inicializa a coluna para os sinais de operação como do tipo string
+        reason = 3
+
+        # Identificar sinais de compra e venda
+        filter_buy = df['Setup_9_1'] == 'Buy'
+        filter_sell = df['Setup_9_1'] == 'Sell'
+
+        # Abrindo operação de compra
+        min_futures_8p = df['Low'].shift(-8).rolling(8).min()
+        take_loss_of_operation_buy = df['Low'].shift(1)
+        has_stop_loss_of_operation_buy = filter_buy & (min_futures_8p <= take_loss_of_operation_buy)
+
+        # Abrindo operação de venda
+        max_futures_8p = df['High'].shift(-8).rolling(8).max()
+        take_loss_of_operation_sell = df['High'].shift(1)
+        has_stop_loss_of_operation_sell = filter_sell & (max_futures_8p >= take_loss_of_operation_sell)
+        
         df['Operation'] = np.nan
-        df['Operation'] = df['Operation'].astype('object')  # Garantir que a coluna é do tipo object
+        df.loc[filter_buy, 'Operation'] = 'Gain'
+        df.loc[filter_sell, 'Operation'] = 'Gain'
+        df.loc[has_stop_loss_of_operation_buy, 'Operation'] = 'Loss'
+        df.loc[has_stop_loss_of_operation_sell, 'Operation'] = 'Loss'
 
-        # Itera sobre o DataFrame para identificar sinais e avaliar a operação
-        for i in range(1, len(df) - 10): 
-            if not pd.isna(df.iloc[i]['Setup_9_1']):
-                operation = df.iloc[i]['Setup_9_1']
+        n_operations = df['Setup_9_1'].notna().sum()
+        operations = df['Operation'].value_counts(dropna=False).to_dict()
+        print(f'Gain [{operations['Gain']/n_operations}]')
+        print(f'Loss [{operations['Loss']/n_operations}]')
 
-                if operation == 'Buy':
-                    loss = df.iloc[i-1]['Low']
-                    gain = df.iloc[i+1]['Open'] + (df.iloc[i+1]['Open'] - loss) * 5
-
-                    for ii in range(i+1, i+10):
-                        if ii >= len(df):  # Garantir que o índice está dentro dos limites
-                            break
-                        if df.iloc[ii]['Low'] <= loss:
-                            df.at[i, 'Operation'] = 'Loss'
-                            break
-                        elif df.iloc[ii]['High'] >= gain:
-                            df.at[i, 'Operation'] = 'Gain'
-                            break
-
-                elif operation == 'Sell':
-                    loss = df.iloc[i-1]['High']
-                    gain = df.iloc[i+1]['Open'] - (loss - df.iloc[i+1]['Open']) * 5
-
-                    for ii in range(i+1, i+10):
-                        if ii >= len(df):  # Garantir que o índice está dentro dos limites
-                            break
-                        if df.iloc[ii]['High'] >= loss:
-                            df.at[i, 'Operation'] = 'Loss'
-                            break
-                        elif df.iloc[ii]['Low'] <= gain:
-                            df.at[i, 'Operation'] = 'Gain'
-                            break
-                
         return df
