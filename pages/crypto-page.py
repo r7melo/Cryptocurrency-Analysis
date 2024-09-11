@@ -3,8 +3,8 @@ import pandas as pd
 import numpy as np
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
-from dash import dcc
-from classes.forex_coin import ForexCoin
+from dash import dcc, html, Output, Input, callback
+from classes.crypto_coin import CryptoCoin
 from classes.indicator import Indicator
 from components.graph import GraphComponent
 
@@ -33,11 +33,13 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def update_graph_forex(fig:go.Figure):
-    
-    coin = ForexCoin('BTCUSDT')
-    coin.path = './data/crypto/1h/BTCUSDT.csv'
+def update_graph_crypto():
 
+    coin = CryptoCoin('BTCUSDT')
+    coin.path = './data/crypto/1h/BTCUSDT.csv'
+    
+    coin.update()
+    
     df = coin.get_dataframe()
     df = calculate_indicators(df)
 
@@ -49,6 +51,7 @@ def update_graph_forex(fig:go.Figure):
     df = df[-500:]
 
     # Gráfico de Candlestick
+    fig = GraphComponent.get_figure()
     fig.add_trace(candlestick('Candlestick', df), row=1, col=1)
 
     # Adicionando média móvel
@@ -72,21 +75,35 @@ def update_graph_forex(fig:go.Figure):
 # Registra a página
 dash.register_page(__name__, path='/crypto-page')
 
-graph_component = GraphComponent('crypto')
-
 # Layout da página
 layout = dbc.Container(
     [
         dbc.Row(
             [
                 # GRAPH COIN
-                graph_component.graph
+                dcc.Graph(id='graph-crypto', figure=GraphComponent.get_figure()),
+                html.Button('Update Price', id='button-update-crypto', n_clicks=0)
             ]
         ),
-        
+        dcc.Store(id='store', data={'updated': False})
     ], 
     fluid=True
 )
 
-graph_component.init_callback(dash.get_app())
-graph_component.fig = update_graph_forex(graph_component.fig)
+@callback(
+    Output('graph-crypto', 'figure'),
+    Input('button-update-crypto', 'n_clicks'),
+    prevent_initial_call=False
+)
+def update_data(n_clicks):
+
+    try:
+        return update_graph_crypto()
+    except Exception as e:
+        return GraphComponent.get_figure() 
+
+
+
+
+
+
