@@ -40,21 +40,22 @@ config_layout_component_graph = {
 }
 
 class GraphComponent:
-    def __init__(self, update_function=None) -> None:
+    def __init__(self, name, update_function=None) -> None:
+        self.name = name
         self.update_function = update_function
         self.interval_update = 5 # minutos
         self.fig = None
         
         self.graph = html.Div(
             [
-                dcc.Graph(id='graph-forex'),
+                dcc.Graph(id=f'graph-{name}'),
                 dcc.Interval(
-                    id='interval-graph-forex',
+                    id=f'interval-graph-{name}',
                     interval=self.interval_update*60*1000, 
                     n_intervals=0
                 ),
             ], 
-            className='graph'
+            className=f'graph-{name}-class'
         )
 
         self.fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1, row_heights=[.9, .1])
@@ -63,8 +64,8 @@ class GraphComponent:
     def init_callback(self, app):
 
         @app.callback(
-            Output('graph-forex', 'figure'),
-            Input('interval-graph-forex', 'n_intervals')
+            Output(f'graph-{self.name}', 'figure'),
+            Input(f'interval-graph-{self.name}', 'n_intervals')
         )
         def update_graph_forex(n):
             return self.fig

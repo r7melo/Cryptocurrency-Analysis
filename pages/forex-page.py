@@ -72,7 +72,7 @@ def update_graph_forex(fig:go.Figure):
 # Registra a página
 dash.register_page(__name__, path='/forex-page')
 
-graph_component = GraphComponent()
+graph_component = GraphComponent('forex')
 
 # Layout da página
 layout = dbc.Container(
