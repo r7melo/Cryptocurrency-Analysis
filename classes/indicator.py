@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from typing import Tuple
 
 class Indicator:
 
@@ -114,7 +115,7 @@ class Indicator:
         take_loss_of_operation_sell = df['High'].shift(1)
         has_stop_loss_of_operation_sell = filter_sell & (max_futures_8p >= take_loss_of_operation_sell)
         
-        df['Operation'] = np.nan
+        df['Operation'] = ''
         df.loc[filter_buy, 'Operation'] = 'Gain'
         df.loc[filter_sell, 'Operation'] = 'Gain'
         df.loc[has_stop_loss_of_operation_buy, 'Operation'] = 'Loss'
@@ -122,7 +123,8 @@ class Indicator:
 
         n_operations = df['Setup_9_1'].notna().sum()
         operations = df['Operation'].value_counts(dropna=False).to_dict()
-        print(f'Gain [{operations['Gain']/n_operations}]')
-        print(f'Loss [{operations['Loss']/n_operations}]')
+        percentage_gain = (operations['Gain']/n_operations)*100
+
+        df['Percentage_Gain'] = percentage_gain
 
         return df
