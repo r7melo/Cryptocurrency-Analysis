@@ -1,11 +1,129 @@
 import dash
 import pandas as pd
+import numpy as np
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from dash import Input, Output, html, dcc, callback
+from dash import dcc, html, Output, Input, callback
 from classes.forex_coin import ForexCoin
-from classes.indicator import Indicator
+from classes.indicators import Indicator
+from classes.backtests import BackTest
+from components.graph import GraphComponent
+from utils.center_of_force import center_of_force
+from classes.logger import Logger
+
+
+
+
+def construct_averages(df: pd.DataFrame) -> pd.DataFrame:
+
+    df['Center'] = center_of_force(df['High'], df['Open'], df['Close'], df['Low'])
+    df['EMA_9'] =  Indicator.exponential_mean(df['Center'], 9)
+    df['EMA_21'] =  Indicator.exponential_mean(df['Center'], 21)
+    df['EMA_34'] = Indicator.exponential_mean(df['Center'], 34)
+    df['EMA_72'] = Indicator.exponential_mean(df['Center'], 72)
+    df['EMA_305'] = Indicator.exponential_mean(df['Center'], 305)
+
+    return df
+
+
+def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
+
+    Indicator.detect_highs_and_lows(df, window=2) # adiciona no df a coluna 'High_Low'
+    Indicator.cut_candle(df, 'EMA_9') #  # adiciona no df a coluna 'EMA_9_Cut_Candle'
+
+
+    filter_approximate_EMAs = Indicator.approximate_values(df, columns=['EMA_9', 'EMA_21'], tolerance=0.0005)
+    df['Approximate_EMAs'] = df.loc[filter_approximate_EMAs, 'EMA_34']
+
+    # filter_tendence_sell = Indicator.check_tendence(df, columns=['EMA_9', 'EMA_305'], ascending=True) # < 
+    # filter_tendence_buy = Indicator.check_tendence(df, columns=['EMA_9', 'EMA_305' ], ascending=False) # >
+
+    filter_body_candle = Indicator.largest_candle_body_sum(df, 2)
+    filter_opposite_candle = Indicator.is_opposite_candle(df)
+    filter_shift_is_ind = df['EMA_9_Cut_Candle'].shift(1).notna()
+
+    teste = df['Low'].shift(2).rolling(window=2).min() > df['Low']
+    teste2 = df['High'].shift(2).rolling(window=2).max() < df['High']
+
+
+    f = filter_body_candle # & (teste | teste2)
+    
+
+    df['Indicador_Setup'] = np.nan
+    df['Indicador_Setup'] = df.loc[f, 'EMA_9_Cut_Candle']
+    
+   
+
+    #df.to_csv('./monitoring.csv')
+
+
+    
+    return df
+
+
+
+
+def update_graph():
+
+    coin = ForexCoin('EURUSD')
+    coin.path = './data/forex/15m/EURUSD.csv'
+    #coin.update()
+    
+    df = coin.get_dataframe()
+
+    df = construct_averages(df)
+    df = calculate_indicators(df)
+
+    df, feedbackS91 = BackTest.backtest_setup_by_indicator(df, period=16, indicator_name='EMA_9_Cut_Candle')
+    df['EMA_9_Cut_Candle_Operation_Gain'] = df.loc[ df['EMA_9_Cut_Candle_Operation'] == 'Gain', 'Center']
+    df['EMA_9_Cut_Candle_Operation_Loss'] = df.loc[ df['EMA_9_Cut_Candle_Operation'] == 'Loss', 'Center']
+
+    df, feedbackInd = BackTest.backtest_setup_by_indicator(df, period=16, indicator_name='Indicador_Setup')
+    df['Indicador_Setup_Operation_Gain'] = df.loc[ df['Indicador_Setup_Operation'] == 'Gain', 'Center']
+    df['Indicador_Setup_Operation_Loss'] = df.loc[ df['Indicador_Setup_Operation'] == 'Loss', 'Center']
+     
+    # Renderizar somente os ultimos 900 candles
+    df = df[-500:]
+
+    candlestick = lambda name, df: go.Candlestick( x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name='Candlestick')
+    line = lambda name, color, dfy: go.Scatter( x=df.index, y=dfy, mode='lines', name=name, line=dict(color=color), visible='legendonly')
+    marker = lambda name, color, dfy: go.Scatter( x=df.index, y=dfy, mode='markers', name=name, marker=dict(color=color, size=10), visible='legendonly')
+
+    # Gráfico de Candlestick
+    fig = GraphComponent.get_figure()
+    fig.update_layout(title=coin.name)
+
+    fig.add_trace(go.Scatter(x=df.index, y=df['High_Low'], mode='lines', name='High_Low', line=dict(color='rgba(255,255,255,0.5)')), row=1, col=1)
+    fig.add_trace(candlestick('Candlestick', df), row=1, col=1)
+
+    # Adicionando EMAs
+    fig.add_trace(line('EMA 9', '#1ff', df['EMA_9']), row=1, col=1)
+    fig.add_trace(line('EMA 21', '#1bf', df['EMA_21']), row=1, col=1)
+    fig.add_trace(line('EMA 34', '#fbcfb7', df['EMA_34']), row=1, col=1)
+    fig.add_trace(line('EMA 72', '#f8ae86', df['EMA_72']), row=1, col=1)
+    fig.add_trace(line('EMA 305', '#f58e56', df['EMA_305']), row=1, col=1)
+
+
+
+
+    fig.add_trace(marker(f'34x72x305', '#1b98e0', df['Approximate_EMAs'] ), row=1, col=1)
+
+
+
+
+
+    # Backtest FeedBack
+    fig.add_trace(marker(f'S9.1 LOSS ({feedbackS91['Loss%']:.0f}% - {feedbackS91['Loss']} ent.)', '#f00', df['EMA_9_Cut_Candle_Operation_Loss'] ), row=1, col=1)
+    fig.add_trace(marker(f'S9.1 GAIN ({feedbackS91['Gain%']:.0f}% - {feedbackS91['Gain']} ent.)', '#0f0', df['EMA_9_Cut_Candle_Operation_Gain'] ), row=1, col=1)
+
+    fig.add_trace(marker(f'Ind. LOSS ({feedbackInd['Loss%']:.0f}% - {feedbackInd['Loss']} ent.)', '#f00', df['Indicador_Setup_Operation_Loss'] ), row=1, col=1)
+    fig.add_trace(marker(f'Ind. GAIN ({feedbackInd['Gain%']:.0f}% - {feedbackInd['Gain']} ent.)', '#0f0', df['Indicador_Setup_Operation_Gain'] ), row=1, col=1)
+
+
+    return fig
+
+
+
 
 # Registra a página
 dash.register_page(__name__, path='/forex-page')
@@ -16,100 +134,33 @@ layout = dbc.Container(
         dbc.Row(
             [
                 # GRAPH COIN
-                dcc.Graph(id='graph-forex'),
-                dcc.Interval(
-                    id='interval-graph-forex',
-                    interval=5*60*1000, # 5 min
-                    n_intervals=0
-                ),
+                dcc.Graph(id='graph-forex', figure=GraphComponent.get_figure(), style={'height': '100%', 'width': '100%'}, config={'responsive': True} ),
+                html.Button('Update Price', id='button-update-forex', n_clicks=0)
             ]
         ),
-        
+        dcc.Store(id='store', data={'updated': False}),
+
+
+        dcc.Interval( id='interval-component',  interval=10000000, n_intervals=0)
     ], 
     fluid=True
 )
 
-config_layout = lambda name: {
-    'title':dict(
-        text=name,
-        font=dict(size=20, color='white')  # Cor e tamanho do título
-    ),
-    'xaxis':dict(
-        title='Tempo',  # Título do eixo x
-        title_font=dict(size=14, color='white'),  # Cor e tamanho do título do eixo x
-        type='date',  # Define o tipo de dado como data
-        tickformat='%d-%m-%Y %H:%M',  # Formato dos ticks para o eixo de tempo
-        tickfont=dict(color='lightgray'),  # Cor das marcações dos ticks
-        tickangle=45,  # Ângulo dos ticks para melhor visualização
-        gridcolor='gray',  # Cor das linhas de grade verticais
-        showline=True,  # Mostra a linha do eixo x
-        linecolor='white',  # Cor da linha do eixo x
-    ),
-    'yaxis':dict(
-        title='Price',  # Título do eixo y
-        title_font=dict(size=14, color='white'),  # Cor e tamanho do título do eixo y
-        tickfont=dict(color='lightgray'),  # Cor das marcações dos ticks no eixo y
-        gridcolor='gray',  # Cor das linhas de grade horizontais
-        showline=True,  # Mostra a linha do eixo y
-        linecolor='white',  # Cor da linha do eixo y
-    ),
-    'template':'plotly_dark',  # Tema escuro
-    'height':900,
-    'legend':dict(
-        orientation='h',
-        bgcolor='rgba(0,0,0,0.5)',
-        bordercolor='white',
-        borderwidth=1,
-        font=dict(
-            size=12,
-            color='white'
-        )
-    )
-}
-
 @callback(
     Output('graph-forex', 'figure'),
-    Input('interval-graph-forex', 'n_intervals')
+    Input('button-update-forex', 'n_clicks'),
+    prevent_initial_call=False
 )
-def update_graph_forex(n):
-    
-    coin = ForexCoin('EURUSD')
-    coin.path = './data/forex/15m/EURUSD.csv'
+def update_data(n_clicks):
 
-    df = coin.get_dataframe()[-900:]
-
-    df['Percentual'] = ((df['Close'] - df['Open']) / df['Open']) * 100
-    df['MP'] = Indicator.mean(df['Percentual'], 30) * 10
-
-    df['SMA_10'] = Indicator.mean(df['Close'], 10)
-    df['SMA_15'] = Indicator.mean(df['Close'], 15)
-    df['SMA_30'] = Indicator.mean(df['Close'], 30)
-
-    price_center = ((df['Close']+df['Open'])/2)
-    df['EMA_9'] =  Indicator.exponential_mean(price_center, 9)
+    try:
+        return update_graph()
+    except Exception as ex:
+        Logger.log("Erro ao atualizar o gráfico: ", ex)
+        return GraphComponent.get_figure() 
 
 
-    df['LOSS_BUY'] = Indicator.compare_displaced(df, 'Low', 'min', 9)
-    df['LOSS_SELL'] = Indicator.compare_displaced(df, 'High', 'max', 9)
-
-    # Criando subplots
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1, row_heights=[.9, .1])
-
-    candlestick = lambda name, df: go.Candlestick( x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name='Candlestick')
-    scatter = lambda name, color, dfy: go.Scatter( x=df.index, y=dfy, mode='lines', name=name, line=dict(color=color), visible='legendonly')
-    # Gráfico de Candlestick
-    fig.add_trace(candlestick('Candlestick', df), row=1, col=1)
-
-    # Adicionando média móvel
-    fig.add_trace(scatter('SMA 10', '#fbcfb7', df['SMA_10']), row=1, col=1)
-    fig.add_trace(scatter('SMA 15', '#f8ae86', df['SMA_15']), row=1, col=1)
-    fig.add_trace(scatter('SMA 30', '#f58e56', df['SMA_30']), row=1, col=1)
-    fig.add_trace(scatter('LOSS BUY', '#030', df['LOSS_BUY']), row=1, col=1)
-    fig.add_trace(scatter('LOSS SELL', '#300', df['LOSS_SELL']), row=1, col=1)
-    fig.add_trace(scatter('EMA 9', '#1bf', df['EMA_9']), row=1, col=1)
 
 
-    fig.update_layout(**config_layout(coin.name))
 
 
-    return fig
