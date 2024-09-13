@@ -20,12 +20,16 @@ class ForexCoin:
             return None
         
     def download(self):
+
+        symbol = self.name
+        start_date = self.start
+        end_date = self.end
+        timeframe = self.interval
+
         try:
-            # Inicializar o MetaTrader 5
             if not mt5.initialize():
                 raise Exception(f"Erro ao inicializar MetaTrader5: {mt5.last_error()}")
 
-            # Definir timeframe do MT5 baseado no intervalo desejado
             timeframe_map = {
                 '1m': mt5.TIMEFRAME_M1,
                 '5m': mt5.TIMEFRAME_M5,
@@ -33,48 +37,49 @@ class ForexCoin:
                 '1h': mt5.TIMEFRAME_H1,
                 '1d': mt5.TIMEFRAME_D1,
             }
-            mt5_timeframe = timeframe_map.get(self.interval)
-
+            mt5_timeframe = timeframe_map.get(timeframe)
+            
             if not mt5_timeframe:
-                raise ValueError(f"Intervalo '{self.interval}' não é suportado")
+                raise ValueError(f"Intervalo '{timeframe}' não é suportado")
 
-            # Solicitar dados históricos do MetaTrader 5
-            rates = mt5.copy_rates_range(self.name, mt5_timeframe, datetime.strptime(self.start, '%Y-%m-%d'), datetime.strptime(self.end, '%Y-%m-%d'))
+            all_data = []
+            current_start = start_date
 
-            # Encerrar a conexão com o MetaTrader 5
+            while current_start < end_date:
+                current_end = min(current_start + timedelta(days=60), end_date)
+                rates = mt5.copy_rates_range(symbol, mt5_timeframe, current_start, current_end)
+
+                if rates is None or len(rates) == 0:
+                    raise Exception(f"Nenhum dado encontrado para {symbol} no intervalo {current_start} a {current_end}")
+
+                data = pd.DataFrame(rates)
+                data['time'] = pd.to_datetime(data['time'], unit='s')
+                data.set_index('time', inplace=True)
+                data = data.rename(columns={
+                    'open': 'Open',
+                    'high': 'High',
+                    'low': 'Low',
+                    'close': 'Close',
+                    'tick_volume': 'Volume'
+                })
+                data['Open time'] = data.index
+                data['Close time'] = pd.NA
+                data['Quote volume'] = pd.NA
+                data['Number of trades'] = pd.NA
+                data['Taker base volume'] = pd.NA
+                data['Taker quote volume'] = pd.NA
+                data = data[['Open time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Close time', 'Quote volume', 'Number of trades', 'Taker base volume', 'Taker quote volume']]
+                data.set_index('Open time', inplace=True)
+                all_data.append(data)
+                
+                current_start = current_end
+
             mt5.shutdown()
 
-            # Verificar se os dados foram baixados com sucesso
-            if rates is None or len(rates) == 0:
-                raise Exception(f"Nenhum dado encontrado para {self.name} no intervalo especificado.")
-
-            # Converter para DataFrame do pandas
-            data = pd.DataFrame(rates)
-            data['time'] = pd.to_datetime(data['time'], unit='s')  # Converter o timestamp para datetime
-            data.set_index('time', inplace=True)
-
-            # Mapear e renomear colunas
-            data = data.rename(columns={
-                'open': 'Open',
-                'high': 'High',
-                'low': 'Low',
-                'close': 'Close',
-                'tick_volume': 'Volume'
-            })
-
-            # Adicionar colunas adicionais com NaN ou valores padrão
-            data['Open time'] = data.index
-            data['Close time'] = pd.NA  # Defina como o mesmo valor se não houver dados de fechamento disponíveis
-            data['Quote volume'] = pd.NA
-            data['Number of trades'] = pd.NA
-            data['Taker base volume'] = pd.NA
-            data['Taker quote volume'] = pd.NA
-
-            # Reordenar as colunas
-            data = data[['Open time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Close time', 'Quote volume', 'Number of trades', 'Taker base volume', 'Taker quote volume']]
-            data.set_index('Open time', inplace=True)
-
-            return data
+            # Concatenar todos os DataFrames em um único DataFrame
+            final_data = pd.concat(all_data)
+            final_data = final_data[~final_data.index.duplicated(keep='last')]
+            return final_data
 
         except Exception as ex:
             Logger.log(f'[{self.__class__.__name__}] Erro ao fazer download de {self.name}', ex)
@@ -83,12 +88,9 @@ class ForexCoin:
     def update(self):
         try:
             # Atualizar o intervalo de tempo
-            self.start = (datetime.now() - timedelta(days=10)).strftime('%Y-%m-%d')
-            self.end = datetime.now().strftime('%Y-%m-%d')
+            self.start = datetime(2020, 9, 4)
+            self.end = datetime.now()
             self.interval = '15m'
-
-            # Manter o nome original
-            original_name = self.name
 
             try:
                 # Carregar dados existentes
@@ -101,6 +103,7 @@ class ForexCoin:
                 # Concatenar e salvar
                 if df_new is not None and not df_new.empty:
                     data = pd.concat([data.iloc[:-1], df_new])
+                    data = data[~data.index.duplicated(keep='last')]
                     data.to_csv(self.path)
 
             except Exception as inner_ex:
@@ -112,9 +115,6 @@ class ForexCoin:
                 if data is not None and len(data) > 1:
                     data.to_csv(self.path)
 
-            finally:
-                # Restaurar o nome original
-                self.name = original_name
 
         except Exception as ex:
             Logger.log(f'[{self.__class__.__name__}] Erro ao atualizar dados com o arquivo {self.path}', ex)

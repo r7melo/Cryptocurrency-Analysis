@@ -2,7 +2,14 @@ import MetaTrader5 as mt5
 import pandas as pd
 from datetime import datetime, timedelta
 
-def download_data(symbol, start_date, end_date, timeframe):
+def download_data() -> pd.DataFrame:
+
+    symbol = 'EURUSD'
+    start_date = datetime(2020, 9, 4)
+    end_date = datetime.now()
+    timeframe = '15m'
+
+
     try:
         if not mt5.initialize():
             raise Exception(f"Erro ao inicializar MetaTrader5: {mt5.last_error()}")
@@ -59,21 +66,17 @@ def download_data(symbol, start_date, end_date, timeframe):
 
         # Concatenar todos os DataFrames em um único DataFrame
         final_data = pd.concat(all_data)
+        final_data = final_data[~final_data.index.duplicated(keep='last')]
         return final_data
 
     except Exception as ex:
         print(f'Erro ao fazer download de {symbol}: {ex}')
         return None
 
-# Parâmetros
-symbol = 'EURUSD'
-start_date = datetime(2020, 9, 4)
-end_date = datetime.now()
-timeframe = '15m'
 
 # Download dos dados
-data = download_data(symbol, start_date, end_date, timeframe)
+data = download_data()
 
 if data is not None:
-    data.to_csv('historico_completo_eurusd.csv')
+    data.to_csv('./data/forex/15m/EURUSD.csv')
     print("Dados baixados e salvos em 'historico_completo_eurusd.csv'")
