@@ -14,44 +14,56 @@ from classes.logger import Logger
 
 
 
-
-def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
+def construct_averages(df: pd.DataFrame) -> pd.DataFrame:
 
     df['Center'] = center_of_force(df['High'], df['Open'], df['Close'], df['Low'])
-
-    Indicator.detect_highs_and_lows(df, window=5)
-    df['High_Low'] = np.nan
-    df.loc[df['Peak_High'], 'High_Low'] = df['High']
-    df.loc[df['Trough_Low'], 'High_Low'] = df['Low']
-    df['High_Low'] = df['High_Low'].interpolate(method='linear')
-
     df['EMA_9'] =  Indicator.exponential_mean(df['Center'], 9)
     df['EMA_21'] =  Indicator.exponential_mean(df['Center'], 21)
     df['EMA_34'] = Indicator.exponential_mean(df['Center'], 34)
     df['EMA_72'] = Indicator.exponential_mean(df['Center'], 72)
     df['EMA_305'] = Indicator.exponential_mean(df['Center'], 305)
 
-    Indicator.cut_candle(df, 'EMA_9')
-
-    filter_approximate_EMAs = Indicator.approximate_values(df, columns=['EMA_34', 'EMA_72', 'EMA_305'], tolerance=0.00005)
-    df['Approximate_EMAs'] = df.loc[filter_approximate_EMAs, 'Center']
-
-    indicado_sell = (filter_approximate_EMAs) | (df['EMA_9_Cut_Candle'] == 'Sell')
-    indicado_buy = (filter_approximate_EMAs) | (df['EMA_9_Cut_Candle'] == 'Buy')
-
-    df['Indicador_Setup'] = pd.Series([np.nan] * len(df), dtype='object')
-    df.loc[indicado_sell , 'Indicador_Setup'] = 'Sell'
-    df.loc[indicado_buy , 'Indicador_Setup'] = 'Buy'
-
-    df['Indicador'] = df.loc[indicado_sell | indicado_buy, 'EMA_9']
+    return df
 
 
+def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
+
+    Indicator.detect_highs_and_lows(df, window=2) # adiciona no df a coluna 'High_Low'
+    Indicator.cut_candle(df, 'EMA_9') #  # adiciona no df a coluna 'EMA_9_Cut_Candle'
+
+
+    filter_approximate_EMAs = Indicator.approximate_values(df, columns=['EMA_9', 'EMA_21'], tolerance=0.0005)
+    df['Approximate_EMAs'] = df.loc[filter_approximate_EMAs, 'EMA_34']
+
+    # filter_tendence_sell = Indicator.check_tendence(df, columns=['EMA_9', 'EMA_305'], ascending=True) # < 
+    # filter_tendence_buy = Indicator.check_tendence(df, columns=['EMA_9', 'EMA_305' ], ascending=False) # >
+
+    filter_body_candle = Indicator.largest_candle_body_sum(df, 2)
+    filter_opposite_candle = Indicator.is_opposite_candle(df)
+    filter_shift_is_ind = df['EMA_9_Cut_Candle'].shift(1).notna()
+
+    teste = df['Low'].shift(2).rolling(window=2).min() > df['Low']
+    teste2 = df['High'].shift(2).rolling(window=2).max() < df['High']
+
+
+    f = filter_body_candle # & (teste | teste2)
+    
+
+    df['Indicador_Setup'] = np.nan
+    df['Indicador_Setup'] = df.loc[f, 'EMA_9_Cut_Candle']
+    
+   
+
+    #df.to_csv('./monitoring.csv')
+
+
+    
     return df
 
 
 
 
-def update_graph_crypto():
+def update_graph():
 
     coin = CryptoCoin('BTCUSDT')
     coin.path = './data/crypto/1h/BTCUSDT.csv'
@@ -59,11 +71,16 @@ def update_graph_crypto():
     
     df = coin.get_dataframe()
 
+    df = construct_averages(df)
     df = calculate_indicators(df)
 
-    df, feedbackEMA9 = BackTest.backtest_setup_by_indicator(df, period=8, indicator_name='Indicador_Setup')
-    df['Indicador_Price_Gain'] = df.loc[ df['Indicador_Setup_Operation'] == 'Gain', 'Center']
-    df['Indicador_Price_Loss'] = df.loc[ df['Indicador_Setup_Operation'] == 'Loss', 'Center']
+    df, feedbackS91 = BackTest.backtest_setup_by_indicator(df, period=16, indicator_name='EMA_9_Cut_Candle')
+    df['EMA_9_Cut_Candle_Operation_Gain'] = df.loc[ df['EMA_9_Cut_Candle_Operation'] == 'Gain', 'Center']
+    df['EMA_9_Cut_Candle_Operation_Loss'] = df.loc[ df['EMA_9_Cut_Candle_Operation'] == 'Loss', 'Center']
+
+    df, feedbackInd = BackTest.backtest_setup_by_indicator(df, period=16, indicator_name='Indicador_Setup')
+    df['Indicador_Setup_Operation_Gain'] = df.loc[ df['Indicador_Setup_Operation'] == 'Gain', 'Center']
+    df['Indicador_Setup_Operation_Loss'] = df.loc[ df['Indicador_Setup_Operation'] == 'Loss', 'Center']
      
     # Renderizar somente os ultimos 900 candles
     df = df[-500:]
@@ -76,22 +93,31 @@ def update_graph_crypto():
     fig = GraphComponent.get_figure()
     fig.update_layout(title=coin.name)
 
-    fig.add_trace(go.Scatter(x=df.index, y=df['High_Low'], mode='lines', name='High_Low', line=dict(color='white')), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df['High_Low'], mode='lines', name='High_Low', line=dict(color='rgba(255,255,255,0.5)')), row=1, col=1)
     fig.add_trace(candlestick('Candlestick', df), row=1, col=1)
 
-    # Adicionando média móvel
+    # Adicionando EMAs
     fig.add_trace(line('EMA 9', '#1ff', df['EMA_9']), row=1, col=1)
     fig.add_trace(line('EMA 21', '#1bf', df['EMA_21']), row=1, col=1)
     fig.add_trace(line('EMA 34', '#fbcfb7', df['EMA_34']), row=1, col=1)
     fig.add_trace(line('EMA 72', '#f8ae86', df['EMA_72']), row=1, col=1)
     fig.add_trace(line('EMA 305', '#f58e56', df['EMA_305']), row=1, col=1)
 
-    fig.add_trace(marker(f'Ind. GAIN ({feedbackEMA9['Gain%']:.0f}% - {feedbackEMA9['Gain']} ent.)', '#0f0', df['Indicador_Price_Gain'] ), row=1, col=1)
-    fig.add_trace(marker(f'Ind. LOSS ({feedbackEMA9['Loss%']:.0f}% - {feedbackEMA9['Loss']} ent.)', '#f00', df['Indicador_Price_Gain'] ), row=1, col=1)
-    fig.add_trace(marker(f'INDICADOR', '#0ff',  df['Indicador']), row=1, col=1)
 
 
-    fig.add_trace(marker(f'Approximate EMAs', '#fff',  df['Approximate_EMAs']), row=1, col=1)
+
+    fig.add_trace(marker(f'34x72x305', '#1b98e0', df['Approximate_EMAs'] ), row=1, col=1)
+
+
+
+
+
+    # Backtest FeedBack
+    fig.add_trace(marker(f'S9.1 LOSS ({feedbackS91['Loss%']:.0f}% - {feedbackS91['Loss']} ent.)', '#f00', df['EMA_9_Cut_Candle_Operation_Loss'] ), row=1, col=1)
+    fig.add_trace(marker(f'S9.1 GAIN ({feedbackS91['Gain%']:.0f}% - {feedbackS91['Gain']} ent.)', '#0f0', df['EMA_9_Cut_Candle_Operation_Gain'] ), row=1, col=1)
+
+    fig.add_trace(marker(f'Ind. LOSS ({feedbackInd['Loss%']:.0f}% - {feedbackInd['Loss']} ent.)', '#f00', df['Indicador_Setup_Operation_Loss'] ), row=1, col=1)
+    fig.add_trace(marker(f'Ind. GAIN ({feedbackInd['Gain%']:.0f}% - {feedbackInd['Gain']} ent.)', '#0f0', df['Indicador_Setup_Operation_Gain'] ), row=1, col=1)
 
 
     return fig
@@ -128,7 +154,7 @@ layout = dbc.Container(
 def update_data(n_clicks):
 
     try:
-        return update_graph_crypto()
+        return update_graph()
     except Exception as ex:
         Logger.log("Erro ao atualizar o gráfico: ", ex)
         return GraphComponent.get_figure() 
