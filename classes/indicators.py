@@ -117,6 +117,44 @@ class Indicator:
             result = result & comparison
 
         return result
+    
+
+    @staticmethod
+    def check_tendence(df: pd.DataFrame, columns: list, ascending: bool = True) -> pd.Series:
+        """
+        Verifica se os valores em cada linha de um DataFrame estão em ordem crescente ou decrescente 
+        para as colunas especificadas.
+
+        Parâmetros:
+        - df (pd.DataFrame): DataFrame contendo as colunas a serem comparadas.
+        - columns (list): Lista com os nomes das colunas a serem comparadas.
+        - ascending (bool): Se True, verifica a ordem crescente; se False, verifica a ordem decrescente (padrão: True).
+
+        Retorna:
+        - pd.Series: Série booleana indicando se os valores em cada linha estão na ordem especificada.
+        """
+        # Verifica se há pelo menos duas colunas para comparar
+        if len(columns) < 2:
+            raise ValueError("É necessário ao menos duas colunas para realizar a comparação.")
+
+        # Inicializa uma série booleana com True para todas as linhas
+        result = pd.Series([True] * len(df), index=df.index)
+
+        # Loop para comparar as colunas especificadas
+        for i in range(len(columns) - 1):
+            if ascending:
+                # Verifica se cada valor é estritamente menor que o próximo valor na sequência de colunas
+                comparison = df[columns[i]] < df[columns[i + 1]]
+            else:
+                # Verifica se cada valor é estritamente maior que o próximo valor na sequência de colunas
+                comparison = df[columns[i]] > df[columns[i + 1]]
+            
+            # Atualiza o resultado com uma operação lógica "E" para manter as verificações anteriores
+            result = result & comparison
+
+        return result
+
+
 
 
     @staticmethod
@@ -232,28 +270,89 @@ class Indicator:
     @staticmethod
     def detect_highs_and_lows(df: pd.DataFrame, window: int = 1) -> pd.DataFrame:
         """
-        Identifica topos (na coluna 'High') e fundos (na coluna 'Low') locais em um DataFrame de dados financeiros.
+        Identifica topos e fundos locais na coluna 'Close' de um DataFrame de dados financeiros. 
+        Além disso, preenche os valores ausentes entre topos e fundos identificados com interpolação linear.
 
         Parâmetros:
-        - df (pd.DataFrame): DataFrame contendo as colunas 'High' e 'Low' para análise.
+        - df (pd.DataFrame): DataFrame contendo a coluna 'Close' para análise.
         - window (int): Número de períodos para comparar antes e depois de cada ponto (padrão: 1).
 
         Retorna:
-        - pd.DataFrame: DataFrame original com colunas adicionais 'Peak_High' e 'Trough_Low' indicando topos e fundos.
+        - pd.DataFrame: DataFrame original com a coluna adicional:
+            - 'High_Low': Valores da coluna 'Close' interpolados entre topos e fundos identificados.
         """
-        # Verifica se as colunas 'High' e 'Low' estão no DataFrame
-        if 'High' not in df.columns or 'Low' not in df.columns:
-            raise ValueError("O DataFrame deve conter as colunas 'High' e 'Low'.")
+        # Verifica se a coluna 'Close' está no DataFrame
+        if 'Close' not in df.columns:
+            raise ValueError("O DataFrame deve conter a coluna 'Close'.")
 
-        # Inicializa as colunas 'Peak_High' e 'Trough_Low' com False
-        df['Peak_High'] = False
-        df['Trough_Low'] = False
+        # Calcula os valores máximos e mínimos usando rolling window
+        rolling_high_max = df['Close'].rolling(window=window*2+1, center=True).max()
+        rolling_low_min = df['Close'].rolling(window=window*2+1, center=True).min()
 
-        # Identifica topos e fundos locais usando rolling window
-        rolling_high_max = df['High'].rolling(window=window*2+1, center=True).max()
-        rolling_low_min = df['Low'].rolling(window=window*2+1, center=True).min()
+        # Identifica topos e fundos locais
+        is_peak_high = (df['Close'] == rolling_high_max) & (df['Close'] > df['Close'].shift(1)) & (df['Close'] > df['Close'].shift(-1))
+        is_trough_low = (df['Close'] == rolling_low_min) & (df['Close'] < df['Close'].shift(1)) & (df['Close'] < df['Close'].shift(-1))
 
-        df['Peak_High'] = (df['High'] == rolling_high_max) & (df['High'] > df['High'].shift(1)) & (df['High'] > df['High'].shift(-1))
-        df['Trough_Low'] = (df['Low'] == rolling_low_min) & (df['Low'] < df['Low'].shift(1)) & (df['Low'] < df['Low'].shift(-1))
+        # Cria a coluna 'High_Low' e preenche os valores entre topos e fundos com interpolação linear
+        df['High_Low'] = np.nan
+        df.loc[is_peak_high, 'High_Low'] = df['Close']
+        df.loc[is_trough_low, 'High_Low'] = df['Close']
+        df['High_Low'] = df['High_Low'].interpolate(method='linear')
 
         return df
+        
+
+    @staticmethod
+    def largest_candle_body_sum(df: pd.DataFrame, n: int = 5) -> pd.Series:
+        """
+        Verifica se o corpo de um candle é maior do que a soma dos corpos dos últimos N candles anteriores.
+
+        Parâmetros:
+        - df (pd.DataFrame): DataFrame contendo as colunas 'Open' e 'Close' para análise.
+        - n (int): Número de candles anteriores a serem considerados na soma (padrão: 5).
+
+        Retorna:
+        - pd.Series: Série booleana indicando True onde o corpo do candle é maior que a soma dos corpos dos últimos N candles.
+        """
+        # Calcula o tamanho do corpo de cada candle
+        candle_body = abs(df['Open'] - df['Close'])
+
+        # Calcula a soma dos corpos dos últimos N candles para cada linha
+        sum_previous_bodies = candle_body.rolling(window=n).sum().shift(1)
+
+        # Verifica se o corpo do candle atual é maior que a soma dos corpos anteriores
+        is_largest_body_sum = candle_body > sum_previous_bodies
+
+        return is_largest_body_sum
+
+    @staticmethod
+    def is_opposite_candle(df: pd.DataFrame) -> pd.Series:
+        """
+        Verifica se o candle atual é oposto ao candle anterior.
+        
+        Considerando:
+        - Candle de venda (sell) se 'Open' < 'Close'
+        - Candle de compra (buy) se 'Close' < 'Open'
+        
+        O candle atual é oposto ao anterior se:
+        - O candle atual é um 'sell' e o anterior é um 'buy', ou
+        - O candle atual é um 'buy' e o anterior é um 'sell'.
+        
+        Parâmetros:
+        - df (pd.DataFrame): DataFrame contendo as colunas 'Open' e 'Close' para análise.
+
+        Retorna:
+        - pd.Series: Série booleana indicando True onde o candle atual é oposto ao anterior.
+        """
+        # Calcula se o candle atual é de venda (sell) ou compra (buy)
+        current_is_sell = df['Open'] < df['Close']
+        current_is_buy = df['Close'] < df['Open']
+        
+        # Calcula se o candle anterior é de venda (sell) ou compra (buy)
+        previous_is_sell = df['Open'].shift(1) < df['Close'].shift(1)
+        previous_is_buy = df['Close'].shift(1) < df['Open'].shift(1)
+        
+        # Verifica se o candle atual é o oposto do candle anterior
+        opposite_candle = (current_is_sell & previous_is_buy) | (current_is_buy & previous_is_sell)
+        
+        return opposite_candle

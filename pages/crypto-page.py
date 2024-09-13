@@ -31,7 +31,7 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df['EMA_72'] = Indicator.exponential_mean(df['Center'], 72)
     df['EMA_305'] = Indicator.exponential_mean(df['Center'], 305)
 
-    df = Indicator.cut_candle(df, 'EMA_9')
+    Indicator.cut_candle(df, 'EMA_9')
 
     filter_approximate_EMAs = Indicator.approximate_values(df, columns=['EMA_34', 'EMA_72', 'EMA_305'], tolerance=0.00005)
     df['Approximate_EMAs'] = df.loc[filter_approximate_EMAs, 'Center']
@@ -45,7 +45,6 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
     df['Indicador'] = df.loc[indicado_sell | indicado_buy, 'EMA_9']
 
-    print(df['Indicador_Setup'].value_counts(), end='\n\n')
 
     return df
 
@@ -89,10 +88,10 @@ def update_graph_crypto():
 
     fig.add_trace(marker(f'Ind. GAIN ({feedbackEMA9['Gain%']:.0f}% - {feedbackEMA9['Gain']} ent.)', '#0f0', df['Indicador_Price_Gain'] ), row=1, col=1)
     fig.add_trace(marker(f'Ind. LOSS ({feedbackEMA9['Loss%']:.0f}% - {feedbackEMA9['Loss']} ent.)', '#f00', df['Indicador_Price_Gain'] ), row=1, col=1)
+    fig.add_trace(marker(f'INDICADOR', '#0ff',  df['Indicador']), row=1, col=1)
 
 
     fig.add_trace(marker(f'Approximate EMAs', '#fff',  df['Approximate_EMAs']), row=1, col=1)
-    fig.add_trace(marker(f'INDICADOR', '#0ff',  df['Indicador']), row=1, col=1)
 
 
     return fig

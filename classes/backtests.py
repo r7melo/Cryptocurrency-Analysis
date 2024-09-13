@@ -63,4 +63,3 @@ class BackTest:
         }
         
         return df, feedback
-

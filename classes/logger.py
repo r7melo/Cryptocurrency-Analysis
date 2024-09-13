@@ -26,5 +26,5 @@ class Logger:
             log_message += f" | Exception: {str(ex)}"
         
         # Escreve a mensagem de log no arquivo
-        with open(log_path, "a") as log_file:
+        with open(log_path, "a", encoding='utf-8') as log_file:
             log_file.write(log_message + "\n")
