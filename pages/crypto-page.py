@@ -67,7 +67,7 @@ def update_graph():
 
     coin = CryptoCoin('BTCUSDT')
     coin.path = './data/crypto/1h/BTCUSDT.csv'
-    #coin.update()
+    coin.update()
     
     df = coin.get_dataframe()
 

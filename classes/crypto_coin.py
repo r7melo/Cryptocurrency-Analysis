@@ -12,7 +12,7 @@ class CryptoCoin:
 
     def get_dataframe(self) -> pd.DataFrame:
         try:
-            return pd.read_csv(self.path , index_col=0, parse_dates=True)
+            return pd.read_csv(self.path , index_col=0, parse_dates=False)
         except Exception as ex:
             Logger.log(f"Erro ao abrir {self.path}", ex)
             return None
@@ -26,24 +26,50 @@ class CryptoCoin:
         
     def update(self):
         try:
-            self.start = '7 day ago UTC'
-            self.end = 'now UTC'
+            # Define o período e intervalo para o download de dados
+            self.start = pd.Timestamp('2020-01-01')
+            self.end = pd.Timestamp.now()
             self.interval = '1h'
 
             try:
+                # Carrega o DataFrame existente
                 data = self.get_dataframe()
-                self.start = data.index[-1]
 
+                # Atualiza o valor de self.start com a última data disponível
+                if data is not None and not data.empty:
+                    self.start = data.index[-1]
+
+                # Faz o download dos novos dados
                 df_new = self.download()
 
-                data = pd.concat([data.iloc[:-1], df_new])
-                data.to_csv(self.path)
+                if df_new is not None and not df_new.empty:
+                    # Concatena os novos dados com os existentes e remove duplicatas
+                    data = pd.concat([data[:-1], df_new])
+                    data = data[~data.index.duplicated(keep='last')]
+                    data.to_csv(self.path)
 
-            except:
-                
-                data = self.download()
+            except Exception as ex:
+                # Se ocorrer algum erro, realiza o download em blocos
+                Logger.log(f"Erro ao atualizar com o DataFrame existente: {ex}")
 
+                # Divide o período em blocos de 1000 horas
+                date_range = pd.date_range(start=self.start, end=self.end, freq='1000h')
+
+                data = pd.DataFrame()
+
+                for i in range(len(date_range) - 1):
+                    self.start = date_range[i]
+                    self.end = date_range[i + 1]
+
+                    # Faz o download de um bloco de dados
+                    df_chunk = self.download()
+
+                    if df_chunk is not None and not df_chunk.empty:
+                        data = pd.concat([data, df_chunk])
+
+                # Salva os dados somente se houver registros
                 if len(data) > 1:
+                    data = data[~data.index.duplicated(keep='last')]
                     data.to_csv(self.path)
 
         except Exception as ex:
