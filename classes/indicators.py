@@ -118,7 +118,6 @@ class Indicator:
 
         return result
     
-
     @staticmethod
     def check_tendence(df: pd.DataFrame, columns: list, ascending: bool = True) -> pd.Series:
         """
@@ -153,9 +152,6 @@ class Indicator:
             result = result & comparison
 
         return result
-
-
-
 
     @staticmethod
     def approximate_angles_with_tolerance(df: pd.DataFrame, columns: list, tolerance_percent: float = 100) -> pd.Series:
@@ -279,6 +275,8 @@ class Indicator:
 
         Retorna:
         - pd.DataFrame: DataFrame original com a coluna adicional:
+            - 'Is_Peak': Indica se o ponto é um topo local.
+            - 'Is_Trough': Indica se o ponto é um fundo local.
             - 'High_Low': Valores da coluna 'Close' interpolados entre topos e fundos identificados.
         """
         # Verifica se a coluna 'Close' está no DataFrame
@@ -293,6 +291,9 @@ class Indicator:
         is_peak_high = (df['Close'] == rolling_high_max) & (df['Close'] > df['Close'].shift(1)) & (df['Close'] > df['Close'].shift(-1))
         is_trough_low = (df['Close'] == rolling_low_min) & (df['Close'] < df['Close'].shift(1)) & (df['Close'] < df['Close'].shift(-1))
 
+        df['Is_Peak'] = is_peak_high
+        df['Is_Trough'] = is_trough_low
+
         # Cria a coluna 'High_Low' e preenche os valores entre topos e fundos com interpolação linear
         df['High_Low'] = np.nan
         df.loc[is_peak_high, 'High_Low'] = df['Close']
@@ -300,7 +301,6 @@ class Indicator:
         df['High_Low'] = df['High_Low'].interpolate(method='linear')
 
         return df
-        
 
     @staticmethod
     def largest_candle_body_sum(df: pd.DataFrame, n: int = 5) -> pd.Series:
