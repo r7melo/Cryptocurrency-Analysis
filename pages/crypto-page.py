@@ -32,7 +32,7 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
     Indicator.cut_candle(df, 'EMA_9') #  # adiciona no df a coluna 'EMA_9_Cut_Candle'
 
 
-    filter_approximate_EMAs = Indicator.approximate_values(df, columns=['EMA_9', 'EMA_21'], tolerance=0.0005)
+    filter_approximate_EMAs = Indicator.approximate_values(df, columns=['EMA_34', 'EMA_72', 'EMA_305'], tolerance=100)
     df['Approximate_EMAs'] = df.loc[filter_approximate_EMAs, 'EMA_34']
 
     # filter_tendence_sell = Indicator.check_tendence(df, columns=['EMA_9', 'EMA_305'], ascending=True) # < 
@@ -65,14 +65,16 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
 def update_graph():
 
-    coin = CryptoCoin('BTCUSDT')
-    coin.path = './data/crypto/1h/BTCUSDT.csv'
+    symbol = 'BTC'
+    coin = CryptoCoin(f'{symbol}USDT')
+    coin.path = f'./data/crypto/15m/{symbol}USDT.csv'
     coin.update()
     
     df = coin.get_dataframe()
 
     df = construct_averages(df)
     df = calculate_indicators(df)
+
 
     df, feedbackS91 = BackTest.backtest_setup_by_indicator(df, period=16, indicator_name='EMA_9_Cut_Candle')
     df['EMA_9_Cut_Candle_Operation_Gain'] = df.loc[ df['EMA_9_Cut_Candle_Operation'] == 'Gain', 'Center']
